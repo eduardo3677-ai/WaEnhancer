@@ -370,6 +370,11 @@ public class CustomView extends Feature {
 
 
     private void registerHooks() {
+        // Pre-compute the set of all view IDs that have CSS rules, for fast filtering.
+        final java.util.HashSet<Integer> allTargetIds = new java.util.HashSet<>();
+        allTargetIds.addAll(mapIds.keySet());
+        allTargetIds.addAll(leafMapIds.keySet());
+
         WppCore.addListenerActivity((activity, type) -> {
             if (type != WppCore.ActivityChangeState.ChangeType.CREATED) {
                 return;
@@ -394,6 +399,9 @@ public class CustomView extends Feature {
             });
         });
 
+        // Use additional instance field instead of global WeakHashMap for visibility overrides.
+        // Only views that have been force-styled will have this field set (via setRuleInView),
+        // so the vast majority of setFlags calls return immediately.
         final int VISIBILITY_MASK = 0x0000000C;
         XposedHelpers.findAndHookMethod(View.class, "setFlags", int.class, int.class, new XC_MethodHook() {
             @Override
@@ -406,15 +414,30 @@ public class CustomView extends Feature {
             }
         });
 
+        // Only run the full recursive applyRules walk when the inflated view tree
+        // actually contains at least one view ID that has a CSS rule.
         XposedHelpers.findAndHookMethod(LayoutInflater.class, "inflate", int.class, ViewGroup.class, boolean.class, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 View result = (View) param.getResult();
-                if (result != null) {
+                if (result == null) return;
+                if (hasAnyTargetId(result, allTargetIds)) {
                     applyRulesRecursively(result);
                 }
             }
         });
+    }
+
+    /** Fast check: does the view tree contain any view IDs that have CSS rules? */
+    private static boolean hasAnyTargetId(View view, java.util.HashSet<Integer> targetIds) {
+        int id = view.getId();
+        if (id > 0 && targetIds.contains(id)) return true;
+        if (view instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                if (hasAnyTargetId(group.getChildAt(i), targetIds)) return true;
+            }
+        }
+        return false;
     }
 
     private void applyRulesRecursively(View view) {

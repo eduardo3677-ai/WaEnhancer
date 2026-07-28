@@ -682,47 +682,41 @@ public class Others extends Feature {
                 }
             };
 
-            // Hook setVisibility on ImageView.class to narrow down hook scope significantly (since FAB is an ImageView)
-            XposedHelpers.findAndHookMethod(ImageView.class, "setVisibility", int.class, visibilityHook);
+            // Lazily hook only the FAB's concrete class instead of all ImageViews.
+            // We listen for the FAB via a single View.onAttachedToWindow hook on ImageView,
+            // but once the FAB is found we hook only its specific class and unhook the finder.
+            final XC_MethodHook.Unhook[] finderUnhook = new XC_MethodHook.Unhook[1];
+            final Set<Class<?>> hookedFabClasses = new HashSet<>();
 
-            // Hook 1: Catch the view immediately when it attaches to the window hierarchy
-            XposedHelpers.findAndHookMethod(ImageView.class, "onAttachedToWindow", new XC_MethodHook() {
-                private final Set<Class<?>> hookedClasses = new HashSet<>();
-
+            finderUnhook[0] = XposedHelpers.findAndHookMethod(ImageView.class, "onAttachedToWindow", new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                     View view = (View) param.thisObject;
-                    if (view.getId() == fabId) {
-                        boolean hideFab = isNotUpdatesTabActive(view);
+                    if (view.getId() != fabId) return;
 
-                        // Dynamically traverse up the hierarchy to hook setVisibility overrides (always do this for fab_second)
-                        Class<?> clazz = view.getClass();
-                        while (clazz != null && clazz != ImageView.class && clazz != View.class) {
-                            boolean alreadyHooked;
-                            synchronized (hookedClasses) {
-                                alreadyHooked = hookedClasses.contains(clazz);
-                            }
-                            if (!alreadyHooked) {
-                                try {
-                                    // Check if this class overrides setVisibility
-                                    clazz.getDeclaredMethod("setVisibility", int.class);
-
-                                    // Hook it
-                                    XposedHelpers.findAndHookMethod(clazz, "setVisibility", int.class, visibilityHook);
-                                    synchronized (hookedClasses) {
-                                        hookedClasses.add(clazz);
-                                    }
-                                } catch (NoSuchMethodException ignored) {
-                                    // Walk up
-                                } catch (Throwable t) {
-                                }
-                            }
-                            clazz = clazz.getSuperclass();
+                    // Hook setVisibility only on the FAB's concrete class (not all ImageViews)
+                    Class<?> clazz = view.getClass();
+                    while (clazz != null && clazz != View.class) {
+                        synchronized (hookedFabClasses) {
+                            if (hookedFabClasses.contains(clazz)) { clazz = clazz.getSuperclass(); continue; }
                         }
+                        try {
+                            clazz.getDeclaredMethod("setVisibility", int.class);
+                            XposedHelpers.findAndHookMethod(clazz, "setVisibility", int.class, visibilityHook);
+                            synchronized (hookedFabClasses) { hookedFabClasses.add(clazz); }
+                        } catch (NoSuchMethodException ignored) {
+                        } catch (Throwable t) { /* skip */ }
+                        clazz = clazz.getSuperclass();
+                    }
 
-                        if (hideFab) {
-                            view.setVisibility(View.GONE);
-                        }
+                    if (isNotUpdatesTabActive(view)) {
+                        view.setVisibility(View.GONE);
+                    }
+
+                    // The FAB's concrete class is now hooked — remove the broad ImageView finder hook
+                    if (finderUnhook[0] != null) {
+                        finderUnhook[0].unhook();
+                        finderUnhook[0] = null;
                     }
                 }
             });
@@ -815,41 +809,35 @@ public class Others extends Feature {
             return;
         }
 
+        // Apply filter visibility via onAttachedToWindow — fires once per view attach
+        // instead of on every invalidate() call (thousands/sec).
         try {
-            XposedHelpers.findAndHookMethod(View.class, "invalidate", boolean.class, new XC_MethodHook() {
-                private final ThreadLocal<Boolean> inHook = ThreadLocal.withInitial(() -> false);
-
+            XposedHelpers.findAndHookMethod(View.class, "onAttachedToWindow", new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                    if (inHook.get()) {
-                        return;
-                    }
-                    inHook.set(true);
-                    try {
-                        var view = (View) param.thisObject;
-                        var id = view.getId();
-                        if (id > 0 && targetMap.containsKey(id)) {
-                            FilterItem item = targetMap.get(id);
-                            if (item == null) {
-                                return;
+                    var view = (View) param.thisObject;
+                    var id = view.getId();
+                    if (id > 0) {
+                        FilterItem item = targetMap.get(id);
+                        if (item != null && FilterItem.BEHAVIOR_GONE.equals(item.behavior)) {
+                            if (view.getVisibility() == View.VISIBLE) {
+                                view.setVisibility(View.GONE);
                             }
-                            switch (item.behavior) {
-                                case FilterItem.BEHAVIOR_GONE:
-                                    if (view.getVisibility() == View.VISIBLE) {
-                                        view.setVisibility(View.GONE);
-                                    }
-                                    break;
-                                default:
-                                    break;
-                            }
+                            // Also intercept future setVisibility calls to keep it GONE
+                            view.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                                @Override
+                                public void onViewAttachedToWindow(View v) {
+                                    if (v.getVisibility() != View.GONE) v.setVisibility(View.GONE);
+                                }
+                                @Override
+                                public void onViewDetachedFromWindow(View v) {}
+                            });
                         }
-                    } finally {
-                        inHook.set(false);
                     }
                 }
             });
         } catch (Throwable t) {
-            XposedBridge.log("[WAEX] Failed to hook View.invalidate(boolean) for item filtering: " + t.toString());
+            XposedBridge.log("[WAEX] Failed to hook View.onAttachedToWindow for item filtering: " + t.toString());
         }
     }
 
@@ -1145,6 +1133,8 @@ public class Others extends Feature {
                 }
 
                 XposedHelpers.setAdditionalInstanceField(dateTextView, "wae_device_source_message_id", messageId);
+                // Tag the view for fast identification in the global setText hook
+                dateTextView.setTag(com.waenhancer.R.id.wae_device_source_tag, Boolean.TRUE);
 
                 // Offload database lookup to a background thread
                 CompletableFuture.supplyAsync(() -> {
@@ -1292,6 +1282,11 @@ public class Others extends Feature {
     }
 
     private void hookMessageDeviceSourceTextView() {
+        // Instead of hooking ALL TextViews globally, we rely on the ConversationItemListener
+        // binding (messageDeviceSourceTag) which already attaches the suffix at bind time.
+        // We only need to re-apply the suffix when WhatsApp itself calls setText on a tagged
+        // date TextView. We hook the specific 4-param internal setText to minimize overhead,
+        // but add a fast int-tag check to bail out before any string operations.
         XC_MethodHook setTextHook = new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -1300,6 +1295,11 @@ public class Others extends Feature {
                 }
 
                 if (!(param.thisObject instanceof TextView textView)) {
+                    return;
+                }
+                // Fast tag check — only tagged views can have a suffix
+                Object tag = textView.getTag(com.waenhancer.R.id.wae_device_source_tag);
+                if (tag == null) {
                     return;
                 }
                 Object suffixObj = XposedHelpers.getAdditionalInstanceField(textView, DEVICE_SOURCE_SUFFIX_FIELD);
@@ -1651,12 +1651,22 @@ public class Others extends Feature {
     private void hookProps() throws Exception {
         var methodPropsBoolean = Unobfuscator.loadPropsBooleanMethod(classLoader);
         var dataUsageActivityClass = WppCore.getDataUsageActivityClass(classLoader);
+
+        // Pre-compute the argument index for the Integer prop key once, instead of
+        // reflectively scanning param.args on every call (called hundreds of times/sec).
+        final int boolArgIdx = findIntArgIndex(((Method) methodPropsBoolean).getParameterTypes());
+
         XposedBridge.hookMethod(methodPropsBoolean, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                var list = ReflectionUtils.findInstancesOfType(param.args, Integer.class);
-                if (list.isEmpty()) return;
-                int i = (int) list.get(0).second;
+                int i;
+                if (boolArgIdx >= 0) {
+                    i = (int) param.args[boolArgIdx];
+                } else {
+                    var list = ReflectionUtils.findInstancesOfType(param.args, Integer.class);
+                    if (list.isEmpty()) return;
+                    i = (int) list.get(0).second;
+                }
 
                 var propValue = propsBoolean.get(i);
                 if (propValue != null) {
@@ -1670,18 +1680,34 @@ public class Others extends Feature {
         });
 
         var methodPropsInteger = Unobfuscator.loadPropsIntegerMethod(classLoader);
+        final int intArgIdx = findIntArgIndex(((Method) methodPropsInteger).getParameterTypes());
 
         XposedBridge.hookMethod(methodPropsInteger, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                var list = ReflectionUtils.findInstancesOfType(param.args, Integer.class);
-                if (list.isEmpty()) return;
-                int i = (int) list.get(0).second;
+                int i;
+                if (intArgIdx >= 0) {
+                    i = (int) param.args[intArgIdx];
+                } else {
+                    var list = ReflectionUtils.findInstancesOfType(param.args, Integer.class);
+                    if (list.isEmpty()) return;
+                    i = (int) list.get(0).second;
+                }
                 var propValue = propsInteger.get(i);
                 if (propValue == null) return;
                 param.setResult(propValue);
             }
         });
+    }
+
+    /** Finds the first Integer/int parameter index in the method signature. */
+    private static int findIntArgIndex(Class<?>[] paramTypes) {
+        for (int idx = 0; idx < paramTypes.length; idx++) {
+            if (paramTypes[idx] == int.class || paramTypes[idx] == Integer.class) {
+                return idx;
+            }
+        }
+        return -1;
     }
 
     private void hookSearchbar(String filterChats) throws Exception {

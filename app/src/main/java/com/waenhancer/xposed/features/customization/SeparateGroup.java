@@ -49,6 +49,15 @@ public class SeparateGroup extends Feature {
 
     public static ArrayList<Integer> tabs = new ArrayList<>();
     public static HashMap<Integer, Object> tabInstances = new HashMap<>();
+    // Single-thread executor for badge DB queries — avoids creating a new Thread per update
+    private static final java.util.concurrent.ExecutorService badgeExecutor =
+            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "wae-badge-query");
+                t.setDaemon(true);
+                return t;
+            });
+    // Cached DB schema columns — checked once, reused forever (schema doesn't change at runtime)
+    private static volatile Set<String> cachedChatColumns = null;
 
     public SeparateGroup(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
@@ -155,7 +164,7 @@ public class SeparateGroup extends Feature {
                         }
                     }
 
-                    new Thread(() -> {
+                    badgeExecutor.execute(() -> {
                         try {
                             String counterType = getSafeString("separategroups_counter_type", "conversations");
                             int chatCount = 0;
@@ -164,15 +173,18 @@ public class SeparateGroup extends Feature {
                             // XposedBridge.log("[WAEX-SG] DB=" + (db != null ? "OK" : "NULL"));
                             if (db != null) {
                                 try {
-                                    // Dynamically retrieve existing columns in the 'chat' table
-                                    // to make this extremely robust against schema changes in different versions of WA.
-                                    Set<String> chatColumns = new HashSet<>();
-                                    try (Cursor colCursor = db.rawQuery("SELECT * FROM chat LIMIT 0", null)) {
-                                        if (colCursor != null) {
-                                            chatColumns.addAll(Arrays.asList(colCursor.getColumnNames()));
+                                    // Cache the schema columns — they don't change during runtime
+                                    Set<String> chatColumns = cachedChatColumns;
+                                    if (chatColumns == null) {
+                                        chatColumns = new HashSet<>();
+                                        try (Cursor colCursor = db.rawQuery("SELECT * FROM chat LIMIT 0", null)) {
+                                            if (colCursor != null) {
+                                                chatColumns.addAll(Arrays.asList(colCursor.getColumnNames()));
+                                            }
+                                        } catch (Throwable t) {
+                                            XposedBridge.log("[WAEX-SG] Schema check failed: " + t);
                                         }
-                                    } catch (Throwable t) {
-                                        XposedBridge.log("[WAEX-SG] Schema check failed: " + t);
+                                        cachedChatColumns = chatColumns;
                                     }
 
                                     // Build the query dynamically using only verified columns
@@ -275,7 +287,7 @@ public class SeparateGroup extends Feature {
                         } catch (Throwable t) {
                             XposedBridge.log("[WAEX-SG] Error in tab count thread: " + t);
                         }
-                    }).start();
+                    });
                 }
             });
             // XposedBridge.log("[WAEX-SG] enableCountMethod hooked successfully");
