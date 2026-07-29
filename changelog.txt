@@ -1,2 +1,5 @@
 [Fixed]
-- Quick Fix: HideSeen
+- Crash on startup
+
+[Improvements]
+- Optimized Performance
