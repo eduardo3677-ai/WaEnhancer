@@ -1,5 +1,7 @@
 package com.waenhancer.xposed.features.customization;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -10,6 +12,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
 import android.view.ViewParent;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
@@ -25,6 +28,12 @@ import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.WeakHashMap;
 
 public class FloatingBottomBar extends Feature {
@@ -39,7 +48,12 @@ public class FloatingBottomBar extends Feature {
 
     private static final WeakHashMap<ViewGroup, Boolean> processedBars = new WeakHashMap<>();
     private static final WeakHashMap<ViewGroup, Integer> setupAttempts = new WeakHashMap<>();
+    private static final WeakHashMap<View, Boolean> styledBottomBars = new WeakHashMap<>();
+    private static final WeakHashMap<View, Boolean> targetHideStates = new WeakHashMap<>();
+    private static final WeakHashMap<View, Float> targetTranslations = new WeakHashMap<>();
 
+    private static boolean scrollHideEnabled = true;
+    private static String scrollHideMode = "downward";
     private static boolean glassEnabled = false;
     private static float glassOpacity = 35f;
     private static int glassFillColor = 0;
@@ -49,6 +63,7 @@ public class FloatingBottomBar extends Feature {
     private static int userBottomMarginDp = 22;
     private static int userSideMarginDp = 16;
     private static int userRadiusDp = 28;
+    private static int userVerticalPaddingDp = 6;
 
     public FloatingBottomBar(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
@@ -64,6 +79,8 @@ public class FloatingBottomBar extends Feature {
     public void doHook() throws Throwable {
         if (!prefs.getBoolean("floating_bottom_bar", true)) return;
 
+        scrollHideEnabled = prefs.getBoolean("floating_bottom_bar_scroll_hide", true);
+        scrollHideMode = prefs.getString("floating_bottom_bar_scroll_hide_mode", "downward");
         glassEnabled = prefs.getBoolean("floating_bottom_bar_glass", false);
         glassOpacity = getPrefFloat(prefs, "floating_bottom_bar_glass_opacity", 35f);
         glassFillColor = getPrefColor(prefs, "floating_bottom_bar_fill_color", 0);
@@ -75,6 +92,7 @@ public class FloatingBottomBar extends Feature {
         userBottomMarginDp = prefs.getInt("floating_bottom_bar_margin_bottom", (int) BOTTOM_MARGIN_DP);
         userSideMarginDp = prefs.getInt("floating_bottom_bar_margin_horizontal", (int) SIDE_MARGIN_DP);
         userRadiusDp = prefs.getInt("floating_bottom_bar_radius", (int) CORNER_RADIUS_DP);
+        userVerticalPaddingDp = prefs.getInt("floating_bottom_bar_padding_vertical", 6);
 
         XposedHelpers.findAndHookMethod(
                 View.class,
@@ -137,6 +155,166 @@ public class FloatingBottomBar extends Feature {
                 }
             });
         }
+
+        hookRecyclerViewScrollListeners();
+    }
+
+    private void hookRecyclerViewScrollListeners() {
+        try {
+            Class<?> recyclerViewClass = XposedHelpers.findClass("androidx.recyclerview.widget.RecyclerView", classLoader);
+            List<Method> candidateMethods = new ArrayList<>();
+            for (Method m : recyclerViewClass.getDeclaredMethods()) {
+                Class<?>[] paramTypes = m.getParameterTypes();
+                if (paramTypes.length == 2 && paramTypes[0] == int.class && paramTypes[1] == int.class && m.getReturnType() == void.class) {
+                    String name = m.getName();
+                    if (Modifier.isStatic(m.getModifiers())) continue;
+                    if (name.equals("scrollBy") || name.equals("scrollTo") || name.equals("onMeasure") || name.equals("onSizeChanged") || name.equals("onLayout") || name.equals("setMeasuredDimension")) {
+                        continue;
+                    }
+                    candidateMethods.add(m);
+                }
+            }
+
+            for (Method m : candidateMethods) {
+                XposedBridge.hookMethod(m, new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                        if (param.args == null || param.args.length < 2) return;
+                        View rv = (View) param.thisObject;
+                        int dy = (int) param.args[1];
+                        handleRecyclerViewScrolled(rv, dy);
+                    }
+                });
+            }
+        } catch (Throwable t) {
+            XposedBridge.log("[WAEX-FBB] Failed to hook RecyclerView scroll listeners: " + t);
+        }
+    }
+
+    private static void handleRecyclerViewScrolled(View rv, int dy) {
+        try {
+            if (Math.abs(dy) > 50000) return;
+            if (Math.abs(dy) < 5) return;
+            if (!rv.isShown()) return;
+            if (!isMainTabScrollable(rv)) return;
+
+            View bottomNav = findBottomNavForScrollable(rv);
+            if (bottomNav == null) return;
+            onViewScrolled(bottomNav, dy);
+        } catch (Throwable ignored) {}
+    }
+
+    private static void onViewScrolled(View bottomNav, int dy) {
+        if (bottomNav == null) return;
+        View barTarget = getBarAnimationTarget(bottomNav);
+        float density = bottomNav.getContext().getResources().getDisplayMetrics().density;
+
+        if (!scrollHideEnabled) {
+            Boolean lastHide = targetHideStates.get(barTarget);
+            Float lastTarget = targetTranslations.get(barTarget);
+            if ((lastHide != null && lastHide) || (lastTarget != null && lastTarget != 0f) || barTarget.getVisibility() != View.VISIBLE) {
+                targetHideStates.put(barTarget, false);
+                targetTranslations.put(barTarget, 0f);
+                barTarget.setVisibility(View.VISIBLE);
+                barTarget.animate().translationY(0f).alpha(1f).scaleX(1f).scaleY(1f).setDuration(200).start();
+                animateFabs(bottomNav, false, density);
+            }
+            return;
+        }
+
+        if (Math.abs(dy) < 5) return;
+
+        boolean hide = dy > 0;
+
+        if ("invisible".equalsIgnoreCase(scrollHideMode)) {
+            Boolean lastHide = targetHideStates.get(barTarget);
+            if (lastHide != null && lastHide == hide) return;
+            targetHideStates.put(barTarget, hide);
+
+            if (hide) {
+                barTarget.animate()
+                        .alpha(0f)
+                        .scaleX(0.95f)
+                        .scaleY(0.95f)
+                        .setDuration(200)
+                        .setInterpolator(new AccelerateDecelerateInterpolator())
+                        .withEndAction(() -> {
+                            Boolean currentHide = targetHideStates.get(barTarget);
+                            if (currentHide != null && currentHide) {
+                                barTarget.setVisibility(View.GONE);
+                            }
+                        })
+                        .start();
+            } else {
+                barTarget.setVisibility(View.VISIBLE);
+                barTarget.animate()
+                        .alpha(1f)
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(200)
+                        .setInterpolator(new AccelerateDecelerateInterpolator())
+                        .withEndAction(null)
+                        .start();
+            }
+            animateFabs(bottomNav, hide, density);
+        } else {
+            int height = barTarget.getHeight();
+            if (height <= 0) height = bottomNav.getHeight();
+            if (height <= 0) height = (int) (80 * density);
+
+            float targetTranslationY = hide ? (height + (userBottomMarginDp * density) + (24 * density)) : 0f;
+
+            Float currentTarget = targetTranslations.get(barTarget);
+            if (currentTarget != null && currentTarget == targetTranslationY) return;
+            targetTranslations.put(barTarget, targetTranslationY);
+
+            barTarget.animate()
+                    .translationY(targetTranslationY)
+                    .setDuration(220)
+                    .setInterpolator(new AccelerateDecelerateInterpolator())
+                    .start();
+
+            animateFabs(bottomNav, hide, density);
+        }
+    }
+
+    private static void animateFabs(View bottomNav, boolean hide, float density) {
+        FrameLayout rootView = findRootViewStatic(bottomNav);
+        if (rootView == null) return;
+
+        ViewGroup container = null;
+        if (bottomNav.getParent() instanceof ViewGroup) {
+            container = (ViewGroup) bottomNav.getParent();
+        }
+
+        int barHeight = container != null ? container.getHeight() : bottomNav.getHeight();
+        int bottomMargin = (int) (userBottomMarginDp * density);
+
+        float baseOffset = -(barHeight + bottomMargin + (FAB_GAP_DP * density));
+        float targetOffset = hide ? 0f : baseOffset;
+
+        for (String name : FAB_RESOURCE_NAMES) {
+            int id = rootView.getContext().getResources().getIdentifier(name, "id", rootView.getContext().getPackageName());
+            if (id <= 0) continue;
+            View fab = rootView.findViewById(id);
+            if (fab != null) {
+                fab.animate()
+                        .translationY(targetOffset)
+                        .setDuration(220)
+                        .setInterpolator(new AccelerateDecelerateInterpolator())
+                        .start();
+            }
+        }
+    }
+
+    private static View getBarAnimationTarget(View bottomNav) {
+        if (bottomNav.getParent() instanceof ViewGroup) {
+            ViewGroup container = (ViewGroup) bottomNav.getParent();
+            if (container.getParent() instanceof FrameLayout) {
+                return container;
+            }
+        }
+        return bottomNav;
     }
 
     private void scheduleSetup(final ViewGroup bar) {
@@ -148,6 +326,7 @@ public class FloatingBottomBar extends Feature {
         bar.post(() -> {
             if (setupFloatingBar(bar)) {
                 processedBars.put(bar, true);
+                styledBottomBars.put(bar, true);
                 setupAttempts.remove(bar);
                 return;
             }
@@ -163,6 +342,7 @@ public class FloatingBottomBar extends Feature {
             if (processedBars.containsKey(bar)) return;
             if (setupFloatingBar(bar)) {
                 processedBars.put(bar, true);
+                styledBottomBars.put(bar, true);
                 setupAttempts.remove(bar);
             } else {
                 retrySetup(bar);
@@ -208,15 +388,47 @@ public class FloatingBottomBar extends Feature {
             bar.setOnApplyWindowInsetsListener((v, insets) -> insets);
 
             float density = bar.getContext().getResources().getDisplayMetrics().density;
+            int padV = (int) (userVerticalPaddingDp * density);
+            int pillHeight = (int) ((48 + (userVerticalPaddingDp * 2)) * density);
+            if (pillHeight < (int) (40 * density)) {
+                pillHeight = (int) (40 * density);
+            }
+
+            bar.setPadding(0, padV, 0, padV);
+
             int bottomMargin = navigationBarInset(rootView) + (int) (userBottomMarginDp * density);
 
             FrameLayout.LayoutParams rootParams = new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
+                    pillHeight
             );
             rootParams.gravity = Gravity.BOTTOM;
             rootParams.bottomMargin = bottomMargin;
             rootView.addView(container, rootParams);
+
+            ViewGroup.LayoutParams containerLp = container.getLayoutParams();
+            if (containerLp != null) {
+                containerLp.height = pillHeight;
+                container.setLayoutParams(containerLp);
+            }
+
+            ViewGroup.LayoutParams barLp = bar.getLayoutParams();
+            if (barLp != null) {
+                barLp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+                barLp.height = pillHeight;
+                bar.setLayoutParams(barLp);
+            }
+
+            for (int i = 0; i < bar.getChildCount(); i++) {
+                View child = bar.getChildAt(i);
+                if (child instanceof ViewGroup) {
+                    ViewGroup.LayoutParams childLp = child.getLayoutParams();
+                    if (childLp != null) {
+                        childLp.height = pillHeight;
+                        child.setLayoutParams(childLp);
+                    }
+                }
+            }
 
             applyPillStyle(container, bar);
             positionFabsAboveBar(rootView, container);
@@ -228,22 +440,42 @@ public class FloatingBottomBar extends Feature {
     }
 
     private void updateOverlayLayout(FrameLayout rootView, ViewGroup container, ViewGroup bar) {
-        ViewGroup.LayoutParams lp = container.getLayoutParams();
         float density = bar.getContext().getResources().getDisplayMetrics().density;
+        int padV = (int) (userVerticalPaddingDp * density);
+        int pillHeight = (int) ((48 + (userVerticalPaddingDp * 2)) * density);
+        if (pillHeight < (int) (40 * density)) {
+            pillHeight = (int) (40 * density);
+        }
+
+        bar.setPadding(0, padV, 0, padV);
+
         int bottomMargin = navigationBarInset(rootView) + (int) (userBottomMarginDp * density);
 
+        ViewGroup.LayoutParams lp = container.getLayoutParams();
         if (lp instanceof FrameLayout.LayoutParams) {
             FrameLayout.LayoutParams flp = (FrameLayout.LayoutParams) lp;
             flp.gravity = Gravity.BOTTOM;
             flp.bottomMargin = bottomMargin;
+            flp.height = pillHeight;
             container.setLayoutParams(flp);
         }
 
         ViewGroup.LayoutParams barLp = bar.getLayoutParams();
         if (barLp != null) {
             barLp.width = ViewGroup.LayoutParams.MATCH_PARENT;
-            barLp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+            barLp.height = pillHeight;
             bar.setLayoutParams(barLp);
+        }
+
+        for (int i = 0; i < bar.getChildCount(); i++) {
+            View child = bar.getChildAt(i);
+            if (child instanceof ViewGroup) {
+                ViewGroup.LayoutParams childLp = child.getLayoutParams();
+                if (childLp != null) {
+                    childLp.height = pillHeight;
+                    child.setLayoutParams(childLp);
+                }
+            }
         }
     }
 
@@ -258,6 +490,10 @@ public class FloatingBottomBar extends Feature {
     }
 
     private FrameLayout findRootView(View startView) {
+        return findRootViewStatic(startView);
+    }
+
+    private static FrameLayout findRootViewStatic(View startView) {
         View current = startView;
         FrameLayout lastFrameLayout = null;
         while (current != null) {
@@ -393,7 +629,7 @@ public class FloatingBottomBar extends Feature {
         positionFabsAboveBar(rootView, null);
     }
 
-    private void positionFabsAboveBar(ViewGroup rootView, ViewGroup barContainer) {
+    private static void positionFabsAboveBar(ViewGroup rootView, ViewGroup barContainer) {
         ViewGroup container = barContainer;
         if (container == null) {
             int navId = rootView.getContext().getResources().getIdentifier("bottom_nav", "id", rootView.getContext().getPackageName());
@@ -435,6 +671,153 @@ public class FloatingBottomBar extends Feature {
                 fab.bringToFront();
             }
         }
+    }
+
+    private static View findBottomNavForScrollable(View scrollable) {
+        ViewGroup rootLayout = getRootLayout(scrollable);
+        View bottomNav = findBottomNavInRoot(rootLayout);
+        if (bottomNav != null) return bottomNav;
+
+        View rootView = scrollable != null ? scrollable.getRootView() : null;
+        if (rootView instanceof ViewGroup) {
+            bottomNav = findBottomNavInRoot((ViewGroup) rootView);
+            if (bottomNav != null) return bottomNav;
+        }
+
+        return null;
+    }
+
+    private static ViewGroup getRootLayout(View view) {
+        View current = view;
+        ViewGroup root = null;
+        while (current != null) {
+            if (current instanceof ViewGroup) {
+                ViewGroup vg = (ViewGroup) current;
+                String name = vg.getClass().getName();
+                if (name.contains("CoordinatorLayout") ||
+                        name.contains("ConstraintLayout") ||
+                        name.contains("RelativeLayout") ||
+                        vg.getId() == android.R.id.content ||
+                        name.endsWith("DecorView")) {
+                    root = vg;
+                    if (vg.getId() == android.R.id.content || name.endsWith("DecorView")) {
+                        break;
+                    }
+                }
+            }
+            ViewParent next = current.getParent();
+            if (next instanceof View) {
+                current = (View) next;
+            } else {
+                break;
+            }
+        }
+        return root;
+    }
+
+    private static View findBottomNavInRoot(ViewGroup root) {
+        if (root == null) return null;
+        for (int i = 0; i < root.getChildCount(); i++) {
+            View child = root.getChildAt(i);
+            if (styledBottomBars.containsKey(child)) {
+                return child;
+            }
+            if (child instanceof ViewGroup) {
+                View nested = findBottomNavInRoot((ViewGroup) child);
+                if (nested != null) return nested;
+            }
+        }
+        return null;
+    }
+
+    private static boolean isMainTabScrollable(View view) {
+        if (view == null) return false;
+        if (!isScrollableClass(view.getClass())) return false;
+        if (isInsideConversation(view)) return false;
+
+        boolean isDescendant = isDescendantOfTabsPager(view);
+        boolean isLarge = isLargeVerticalScrollable(view);
+
+        if (isDescendant && isLarge) {
+            return true;
+        }
+
+        try {
+            if (view.getId() != View.NO_ID) {
+                String entryName = view.getResources().getResourceEntryName(view.getId());
+                if ("list".equalsIgnoreCase(entryName) && isLarge) {
+                    return true;
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        String className = view.getClass().getName();
+        return (className.contains("WDSList") || className.contains("ObservableRecyclerView") || className.contains("CallsHistory")) && isLarge;
+    }
+
+    private static boolean isScrollableClass(Class<?> clazz) {
+        while (clazz != null && clazz != Object.class) {
+            String name = clazz.getName();
+            if (name.equals("androidx.recyclerview.widget.RecyclerView") ||
+                    name.equals("android.widget.ScrollView") ||
+                    name.contains("RecyclerView") ||
+                    name.contains("ScrollView") ||
+                    name.equals("android.widget.AbsListView") ||
+                    name.contains("ListView")) {
+                return true;
+            }
+            clazz = clazz.getSuperclass();
+        }
+        return false;
+    }
+
+    private static boolean isInsideConversation(View view) {
+        ViewParent parent = view.getParent();
+        while (parent != null) {
+            if (parent instanceof View) {
+                View v = (View) parent;
+                if (v.getId() != View.NO_ID) {
+                    try {
+                        String entryName = v.getResources().getResourceEntryName(v.getId());
+                        if ("conversation_view_host".equals(entryName)) {
+                            return true;
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            }
+            if (parent instanceof View) {
+                parent = ((View) parent).getParent();
+            } else {
+                break;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isDescendantOfTabsPager(View view) {
+        ViewParent parent = view.getParent();
+        while (parent != null) {
+            String name = parent.getClass().getName();
+            if (name.contains("TabsPager") || name.toLowerCase().contains("pager") || name.equals("androidx.viewpager.widget.ViewPager")) {
+                return true;
+            }
+            if (parent instanceof View) {
+                parent = ((View) parent).getParent();
+            } else {
+                break;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isLargeVerticalScrollable(View view) {
+        int height = view.getHeight();
+        int width = view.getWidth();
+        float density = view.getContext().getResources().getDisplayMetrics().density;
+        if (height > 0 && width > 0) {
+            return height >= (int) (250 * density);
+        }
+        return true;
     }
 
     private static float getPrefFloat(SharedPreferences prefs, String key, float defaultValue) {
