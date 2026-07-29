@@ -1686,12 +1686,12 @@ public class Others extends Feature {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 int i;
-                if (intArgIdx >= 0) {
-                    i = (int) param.args[intArgIdx];
+                if (intArgIdx >= 0 && param.args[intArgIdx] instanceof Integer) {
+                    i = (Integer) param.args[intArgIdx];
                 } else {
                     var list = ReflectionUtils.findInstancesOfType(param.args, Integer.class);
-                    if (list.isEmpty()) return;
-                    i = (int) list.get(0).second;
+                    if (list.isEmpty() || list.get(0).second == null) return;
+                    i = (Integer) list.get(0).second;
                 }
                 var propValue = propsInteger.get(i);
                 if (propValue == null) return;
