@@ -1,3 +1,6 @@
+[Added]
+- Added support for WA/WB upto 2.26.30.xx
+
 [Fixed]
 - Crash on startup
 
