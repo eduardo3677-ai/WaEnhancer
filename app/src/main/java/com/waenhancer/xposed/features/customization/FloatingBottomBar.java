@@ -1,12 +1,10 @@
 package com.waenhancer.xposed.features.customization;
 
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
-import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -20,6 +18,7 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.waenhancer.xposed.core.Feature;
 import com.waenhancer.xposed.core.devkit.Unobfuscator;
+import com.waenhancer.xposed.utils.DesignUtils;
 import com.waenhancer.xposed.utils.ProHelper;
 
 import de.robv.android.xposed.XC_MethodHook;
@@ -30,27 +29,32 @@ import java.util.WeakHashMap;
 
 public class FloatingBottomBar extends Feature {
 
-    private static final float CORNER_RADIUS_DP = 24f;
-    private static final float SIDE_MARGIN_DP = 12f;
-    private static final float BOTTOM_MARGIN_DP = 16f;
-    private static final float ELEVATION_DP = 6f;
-    private static final float BACKGROUND_ALPHA = 0.95f;
-    private static final float STROKE_ALPHA = 0.25f;
+    private static final float CORNER_RADIUS_DP = 28f;
+    private static final float SIDE_MARGIN_DP = 16f;
+    private static final float BOTTOM_MARGIN_DP = 22f;
+    private static final float PILL_ELEVATION_DP = 12f;
+    private static final float PILL_TRANSLATION_Z_DP = 8f;
     private static final float FAB_GAP_DP = 12f;
     private static final String[] FAB_RESOURCE_NAMES = new String[]{"fab", "fab_second", "extended_mini_fab"};
 
     private static final WeakHashMap<ViewGroup, Boolean> processedBars = new WeakHashMap<>();
     private static final WeakHashMap<ViewGroup, Integer> setupAttempts = new WeakHashMap<>();
 
+    private static boolean glassEnabled = false;
+    private static float glassOpacity = 35f;
+    private static int glassFillColor = 0;
     private static boolean pillDesignPro = false;
     private static boolean pillDesignIos = false;
-    private static int userBottomMarginDp = 16;
-    private static int userSideMarginDp = 12;
+
+    private static int userBottomMarginDp = 22;
+    private static int userSideMarginDp = 16;
+    private static int userRadiusDp = 28;
 
     public FloatingBottomBar(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 
+    @NonNull
     @Override
     public String getPluginName() {
         return "Floating Bottom Bar";
@@ -60,12 +64,17 @@ public class FloatingBottomBar extends Feature {
     public void doHook() throws Throwable {
         if (!prefs.getBoolean("floating_bottom_bar", true)) return;
 
+        glassEnabled = prefs.getBoolean("floating_bottom_bar_glass", false);
+        glassOpacity = getPrefFloat(prefs, "floating_bottom_bar_glass_opacity", 35f);
+        glassFillColor = getPrefColor(prefs, "floating_bottom_bar_fill_color", 0);
+
         String designPref = prefs.getString("floating_bottom_bar_pill_design", "regular");
         pillDesignPro = "pro".equals(designPref) && ProHelper.isPillDesignProEnabled();
         pillDesignIos = "ios_glass".equals(designPref) && ProHelper.isPillDesignProEnabled();
 
         userBottomMarginDp = prefs.getInt("floating_bottom_bar_margin_bottom", (int) BOTTOM_MARGIN_DP);
         userSideMarginDp = prefs.getInt("floating_bottom_bar_margin_horizontal", (int) SIDE_MARGIN_DP);
+        userRadiusDp = prefs.getInt("floating_bottom_bar_radius", (int) CORNER_RADIUS_DP);
 
         XposedHelpers.findAndHookMethod(
                 View.class,
@@ -181,7 +190,7 @@ public class FloatingBottomBar extends Feature {
 
             if (container.getParent() == rootView) {
                 updateOverlayLayout(rootView, container, bar);
-                applyTransparentShadowStyle(container, bar);
+                applyPillStyle(container, bar);
                 positionFabsAboveBar(rootView, container);
                 return true;
             }
@@ -209,7 +218,7 @@ public class FloatingBottomBar extends Feature {
             rootParams.bottomMargin = bottomMargin;
             rootView.addView(container, rootParams);
 
-            applyTransparentShadowStyle(container, bar);
+            applyPillStyle(container, bar);
             positionFabsAboveBar(rootView, container);
             return true;
         } catch (Throwable e) {
@@ -261,7 +270,7 @@ public class FloatingBottomBar extends Feature {
         return lastFrameLayout;
     }
 
-    private void applyTransparentShadowStyle(ViewGroup container, ViewGroup bar) {
+    private void applyPillStyle(ViewGroup container, ViewGroup bar) {
         container.setBackgroundColor(Color.TRANSPARENT);
 
         if (container.getParent() instanceof ViewGroup) {
@@ -282,23 +291,40 @@ public class FloatingBottomBar extends Feature {
         }
 
         float density = bar.getContext().getResources().getDisplayMetrics().density;
-        int barColor = resolveBarColor(bar);
-        int transparentColor = (barColor & 0x00FFFFFF) | (((int) (BACKGROUND_ALPHA * 255)) << 24);
-        int strokeColor = isLightColor(barColor) ?
-                Color.argb((int) (STROKE_ALPHA * 255), 0, 0, 0) :
-                Color.argb((int) (STROKE_ALPHA * 255), 255, 255, 255);
+        Context ctx = bar.getContext();
 
-        int userRadius = prefs.getInt("floating_bottom_bar_radius", (int) CORNER_RADIUS_DP);
-        float radius = userRadius * density;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            bar.setBackgroundTintList(null);
+        }
 
-        GradientDrawable background = new GradientDrawable();
-        background.setShape(GradientDrawable.RECTANGLE);
-        background.setCornerRadius(radius);
-        background.setColor(transparentColor);
-        background.setStroke((int) (1.5f * density), strokeColor);
+        if (glassEnabled) {
+            bar.setBackground(createGlassShape(ctx, density, true));
+            applyPillShadow(bar, density);
+        } else {
+            int userRadius = prefs.getInt("floating_bottom_bar_radius", userRadiusDp);
+            float radius = userRadius * density;
 
-        bar.setBackground(background);
-        bar.setElevation(ELEVATION_DP * density);
+            boolean isNight = DesignUtils.isNightMode(ctx);
+            int bgColor = isNight ? 0xff1f2c34 : 0xffffffff;
+            if (glassFillColor != 0) {
+                bgColor = glassFillColor;
+            } else if (prefs.getBoolean("changecolor", false)) {
+                int customBg = DesignUtils.getPrimarySurfaceColor();
+                if (customBg != 0 && customBg != -1) {
+                    bgColor = customBg;
+                }
+            }
+
+            GradientDrawable background = new GradientDrawable();
+            background.setShape(GradientDrawable.RECTANGLE);
+            background.setCornerRadius(radius);
+            background.setColor(bgColor);
+            background.setStroke(Math.max(1, (int) (0.6f * density)), isNight ? 0x18FFFFFF : 0x22000000);
+
+            bar.setBackground(background);
+            applyPillShadow(bar, density);
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             bar.setOutlineProvider(ViewOutlineProvider.BACKGROUND);
         }
@@ -321,8 +347,43 @@ public class FloatingBottomBar extends Feature {
                     pillProClass.getMethod("applyProDesign", View.class, float.class, String.class).invoke(null, bar, density, style);
                 }
             } catch (Throwable t) {
-                XposedBridge.log("Failed to load PillDesignPro: " + t.getMessage());
+                XposedBridge.log("[WAEX-FBB] Failed to load PillDesignPro: " + t.getMessage());
             }
+        }
+    }
+
+    private GradientDrawable createGlassShape(Context ctx, float density, boolean includeFill) {
+        int userRadius = prefs.getInt("floating_bottom_bar_radius", userRadiusDp);
+        float finalRadius = userRadius * density;
+        GradientDrawable glassShape = new GradientDrawable();
+        glassShape.setShape(GradientDrawable.RECTANGLE);
+        glassShape.setCornerRadius(finalRadius);
+        glassShape.setColor(includeFill ? getGlassOverlayColor(ctx) : 0x00000000);
+        glassShape.setStroke(Math.max(1, (int) (0.6f * density)), getGlassStrokeColor(ctx));
+        return glassShape;
+    }
+
+    private static int getGlassOverlayColor(Context ctx) {
+        int alpha = Math.max(0, Math.min(255, Math.round((glassOpacity / 100f) * 255f)));
+        int rgb = resolveGlassFillColor(ctx) & 0x00FFFFFF;
+        return (alpha << 24) | rgb;
+    }
+
+    private static int resolveGlassFillColor(Context ctx) {
+        if (glassFillColor != 0) {
+            return glassFillColor;
+        }
+        return DesignUtils.isNightMode(ctx) ? 0xff1f2c34 : 0xffffffff;
+    }
+
+    private static int getGlassStrokeColor(Context ctx) {
+        return DesignUtils.isNightMode(ctx) ? 0x22FFFFFF : 0x26000000;
+    }
+
+    private static void applyPillShadow(View view, float density) {
+        view.setElevation(PILL_ELEVATION_DP * density);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            view.setTranslationZ(PILL_TRANSLATION_Z_DP * density);
         }
     }
 
@@ -376,24 +437,29 @@ public class FloatingBottomBar extends Feature {
         }
     }
 
-    private int resolveBarColor(ViewGroup bar) {
-        Drawable currentBg = bar.getBackground();
-        if (currentBg instanceof ColorDrawable) {
-            return ((ColorDrawable) currentBg).getColor();
-        }
+    private static float getPrefFloat(SharedPreferences prefs, String key, float defaultValue) {
         try {
-            TypedValue typedValue = new TypedValue();
-            bar.getContext().getTheme().resolveAttribute(android.R.attr.colorBackground, typedValue, true);
-            return typedValue.data;
+            return prefs.getFloat(key, defaultValue);
         } catch (Throwable ignored) {
-            return 0xFF121212;
+            try {
+                return (float) prefs.getInt(key, (int) defaultValue);
+            } catch (Throwable ignoredToo) {
+                return defaultValue;
+            }
         }
     }
 
-    private boolean isLightColor(int color) {
-        int red = Color.red(color);
-        int green = Color.green(color);
-        int blue = Color.blue(color);
-        return (red * 299 + green * 587 + blue * 114) / 1000 > 180;
+    private static int getPrefColor(SharedPreferences prefs, String key, int defaultValue) {
+        try {
+            if (!prefs.contains(key)) return defaultValue;
+            return prefs.getInt(key, defaultValue);
+        } catch (Throwable ignored) {
+            try {
+                String value = prefs.getString(key, null);
+                return value != null ? Color.parseColor(value) : defaultValue;
+            } catch (Throwable ignoredToo) {
+                return defaultValue;
+            }
+        }
     }
 }
