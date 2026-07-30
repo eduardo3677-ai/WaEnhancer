@@ -645,12 +645,33 @@ public class FloatingBottomBar extends Feature {
     }
 
     private static void alignBadgeToIconTopRight(View badge, View iconContainer, float density, boolean isDot) {
-        int iconRight = iconContainer.getRight();
-        int iconTop = iconContainer.getTop();
+        if (badge == null || iconContainer == null) return;
+
+        View iconView = findIconView(iconContainer);
+
+        int iconRightInTab;
+        int iconTopInTab;
+
+        if (iconView != null && iconView != iconContainer && iconView.getWidth() > 0) {
+            iconRightInTab = iconContainer.getLeft() + iconView.getRight();
+            iconTopInTab = iconContainer.getTop() + iconView.getTop();
+        } else {
+            int containerW = iconContainer.getWidth();
+            int iconW = (int) (userIconSizeDp * density);
+            int paddingH = Math.max(0, (containerW - iconW) / 2);
+            iconRightInTab = iconContainer.getRight() - paddingH;
+            iconTopInTab = iconContainer.getTop() + (int) (4 * density);
+        }
+
         float iconTranslationY = iconContainer.getTranslationY();
 
-        int targetLeft = isDot ? (iconRight - (int) (12 * density)) : (iconRight - (int) (16 * density));
-        int targetTop = isDot ? ((int) (iconTop + iconTranslationY + (2 * density))) : ((int) (iconTop + iconTranslationY - (2 * density)));
+        int targetLeft = isDot
+                ? (iconRightInTab - (int) (5 * density))
+                : (iconRightInTab - (int) (10 * density));
+
+        int targetTop = isDot
+                ? ((int) (iconTopInTab + iconTranslationY - (2 * density)))
+                : ((int) (iconTopInTab + iconTranslationY - (4 * density)));
 
         int currentLeft = badge.getLeft();
         int currentTop = badge.getTop();
@@ -662,12 +683,44 @@ public class FloatingBottomBar extends Feature {
             ViewGroup.LayoutParams lp = badge.getLayoutParams();
             if (lp instanceof FrameLayout.LayoutParams) {
                 FrameLayout.LayoutParams flp = (FrameLayout.LayoutParams) lp;
-                flp.gravity = Gravity.TOP | Gravity.END;
-                flp.topMargin = (int) (2 * density);
-                flp.rightMargin = (int) (6 * density);
+                flp.gravity = Gravity.TOP | Gravity.START;
+                flp.leftMargin = targetLeft;
+                flp.topMargin = targetTop;
                 badge.setLayoutParams(flp);
             }
         }
+    }
+
+    private static View findIconView(View iconContainer) {
+        if (iconContainer == null) return null;
+        if (iconContainer instanceof ImageView) return iconContainer;
+        if (iconContainer instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) iconContainer;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View child = group.getChildAt(i);
+                if (child instanceof ImageView) {
+                    if (child.getId() != View.NO_ID) {
+                        try {
+                            String entryName = child.getResources().getResourceEntryName(child.getId());
+                            if (entryName != null && (entryName.contains("icon") || entryName.contains("image"))) {
+                                return child;
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+                }
+            }
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View child = group.getChildAt(i);
+                if (child instanceof ImageView) {
+                    return child;
+                }
+            }
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View nested = findIconView(group.getChildAt(i));
+                if (nested != null) return nested;
+            }
+        }
+        return null;
     }
 
     private static void findBadgeViewsRecursive(View view, List<View> outBadges) {
