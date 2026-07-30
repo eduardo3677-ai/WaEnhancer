@@ -7,6 +7,7 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -14,6 +15,8 @@ import android.view.ViewOutlineProvider;
 import android.view.ViewParent;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.core.view.ViewCompat;
@@ -64,6 +67,9 @@ public class FloatingBottomBar extends Feature {
     private static int userSideMarginDp = 16;
     private static int userRadiusDp = 28;
     private static int userVerticalPaddingDp = 6;
+    private static int userIconSizeDp = 24;
+    private static int userTextSizeSp = 12;
+    private static int userIconLabelSpacingDp = 2;
 
     public FloatingBottomBar(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
@@ -93,6 +99,9 @@ public class FloatingBottomBar extends Feature {
         userSideMarginDp = prefs.getInt("floating_bottom_bar_margin_horizontal", (int) SIDE_MARGIN_DP);
         userRadiusDp = prefs.getInt("floating_bottom_bar_radius", (int) CORNER_RADIUS_DP);
         userVerticalPaddingDp = prefs.getInt("floating_bottom_bar_padding_vertical", 6);
+        userIconSizeDp = prefs.getInt("floating_bottom_bar_icon_size", 24);
+        userTextSizeSp = prefs.getInt("floating_bottom_bar_text_size", 12);
+        userIconLabelSpacingDp = prefs.getInt("floating_bottom_bar_icon_label_spacing", 2);
 
         XposedHelpers.findAndHookMethod(
                 View.class,
@@ -493,9 +502,9 @@ public class FloatingBottomBar extends Feature {
                     View tabItem = menuView.getChildAt(j);
                     if (tabItem instanceof ViewGroup) {
                         ViewGroup itemGroup = (ViewGroup) tabItem;
-                        applyTranslationToTabChildren(itemGroup, padV);
+                        styleAndLayoutTabItem(itemGroup, padV);
                         itemGroup.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
-                            applyTranslationToTabChildren((ViewGroup) v, padV);
+                            styleAndLayoutTabItem((ViewGroup) v, padV);
                         });
                     }
                 }
@@ -503,11 +512,102 @@ public class FloatingBottomBar extends Feature {
         }
     }
 
-    private static void applyTranslationToTabChildren(ViewGroup tabItem, int padV) {
+    private static void styleAndLayoutTabItem(ViewGroup tabItem, int padV) {
+        if (tabItem == null) return;
+        float density = tabItem.getContext().getResources().getDisplayMetrics().density;
+
+        View iconContainer = null;
+        View labelsGroup = null;
+
         for (int i = 0; i < tabItem.getChildCount(); i++) {
             View child = tabItem.getChildAt(i);
-            if (child != null) {
-                child.setTranslationY(padV);
+            if (child == null) continue;
+            if (child.getId() != View.NO_ID) {
+                try {
+                    String entryName = child.getResources().getResourceEntryName(child.getId());
+                    if (entryName != null) {
+                        if (entryName.contains("icon_container") || entryName.contains("icon")) {
+                            iconContainer = child;
+                        } else if (entryName.contains("labels_group") || entryName.contains("label")) {
+                            labelsGroup = child;
+                        }
+                    }
+                } catch (Throwable ignored) {}
+            }
+            if (iconContainer == null && child instanceof FrameLayout) {
+                iconContainer = child;
+            }
+            if (labelsGroup == null && (child.getClass().getName().contains("BaselineLayout") || (child instanceof ViewGroup && !(child instanceof FrameLayout)))) {
+                labelsGroup = child;
+            }
+        }
+
+        if (iconContainer == null && tabItem.getChildCount() >= 1) {
+            iconContainer = tabItem.getChildAt(0);
+        }
+        if (labelsGroup == null && tabItem.getChildCount() >= 2) {
+            labelsGroup = tabItem.getChildAt(1);
+        }
+
+        applyCustomSizesToTabItem(tabItem, userIconSizeDp, userTextSizeSp, density);
+
+        int itemHeight = tabItem.getHeight();
+        if (itemHeight <= 0) {
+            itemHeight = (int) ((56 + (userVerticalPaddingDp * 2)) * density);
+        }
+
+        int iconHeight = (iconContainer != null && iconContainer.getHeight() > 0)
+                ? iconContainer.getHeight()
+                : (int) (32 * density);
+
+        int labelHeight = 0;
+        if (labelsGroup != null && labelsGroup.getVisibility() != View.GONE) {
+            labelHeight = labelsGroup.getHeight();
+            if (labelHeight <= 0) {
+                labelHeight = (int) (16 * density);
+            }
+        }
+
+        int spacing = (int) (userIconLabelSpacingDp * density);
+        int totalContentHeight = (labelHeight > 0) ? (iconHeight + spacing + labelHeight) : iconHeight;
+
+        int targetIconTop = Math.max((int) (2 * density), (itemHeight - totalContentHeight) / 2);
+
+        if (iconContainer != null) {
+            int currentIconTop = iconContainer.getTop();
+            int iconOffsetY = targetIconTop - currentIconTop;
+            iconContainer.setTranslationY(iconOffsetY);
+        }
+
+        if (labelsGroup != null && labelHeight > 0) {
+            int targetLabelTop = targetIconTop + iconHeight + spacing;
+            int currentLabelTop = labelsGroup.getTop();
+            int labelOffsetY = targetLabelTop - currentLabelTop;
+            labelsGroup.setTranslationY(labelOffsetY);
+        }
+    }
+
+    private static void applyCustomSizesToTabItem(ViewGroup viewGroup, int iconSizeDp, int textSizeSp, float density) {
+        for (int i = 0; i < viewGroup.getChildCount(); i++) {
+            View child = viewGroup.getChildAt(i);
+            if (child instanceof ImageView) {
+                ViewGroup.LayoutParams lp = child.getLayoutParams();
+                if (lp != null) {
+                    int sizePx = (int) (iconSizeDp * density);
+                    if (lp.width != sizePx || lp.height != sizePx) {
+                        lp.width = sizePx;
+                        lp.height = sizePx;
+                        child.setLayoutParams(lp);
+                    }
+                }
+            } else if (child instanceof TextView) {
+                TextView tv = (TextView) child;
+                float targetPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, textSizeSp, tv.getResources().getDisplayMetrics());
+                if (Math.abs(tv.getTextSize() - targetPx) > 0.5f) {
+                    tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, textSizeSp);
+                }
+            } else if (child instanceof ViewGroup) {
+                applyCustomSizesToTabItem((ViewGroup) child, iconSizeDp, textSizeSp, density);
             }
         }
     }
