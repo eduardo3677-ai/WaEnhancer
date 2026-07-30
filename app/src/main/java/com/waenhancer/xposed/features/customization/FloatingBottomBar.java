@@ -585,6 +585,118 @@ public class FloatingBottomBar extends Feature {
             int labelOffsetY = targetLabelTop - currentLabelTop;
             labelsGroup.setTranslationY(labelOffsetY);
         }
+
+        formatBadgeViews(tabItem, iconContainer, density);
+    }
+
+    private static void formatBadgeViews(ViewGroup tabItem, View iconContainer, float density) {
+        if (tabItem == null) return;
+        List<View> badgeViews = new ArrayList<>();
+        findBadgeViewsRecursive(tabItem, badgeViews);
+
+        if (badgeViews.isEmpty()) return;
+
+        int dotBadgeSizePx = (int) (10 * density);
+
+        for (View badge : badgeViews) {
+            if (badge == null || badge.getVisibility() != View.VISIBLE) continue;
+
+            boolean hasTextNumber = false;
+            if (badge instanceof TextView) {
+                TextView tv = (TextView) badge;
+                CharSequence text = tv.getText();
+                if (text != null && text.length() > 0) {
+                    hasTextNumber = true;
+                }
+            }
+
+            if (hasTextNumber) {
+                if (iconContainer != null) {
+                    alignBadgeToIconTopRight(badge, iconContainer, density, false);
+                }
+                continue;
+            }
+
+            // Dot badge without number (e.g. bottom_nav_indicator_badge on Updates)
+            ViewGroup.LayoutParams lp = badge.getLayoutParams();
+            if (lp != null) {
+                if (lp.width != dotBadgeSizePx || lp.height != dotBadgeSizePx) {
+                    lp.width = dotBadgeSizePx;
+                    lp.height = dotBadgeSizePx;
+                    badge.setLayoutParams(lp);
+                }
+            }
+
+            GradientDrawable dotDrawable = new GradientDrawable();
+            dotDrawable.setShape(GradientDrawable.OVAL);
+            dotDrawable.setColor(0xFF00A884); // WhatsApp green badge accent
+            badge.setBackground(dotDrawable);
+
+            if (badge instanceof ImageView) {
+                ImageView iv = (ImageView) badge;
+                iv.setImageDrawable(null);
+                iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            }
+
+            if (iconContainer != null) {
+                alignBadgeToIconTopRight(badge, iconContainer, density, true);
+            }
+        }
+    }
+
+    private static void alignBadgeToIconTopRight(View badge, View iconContainer, float density, boolean isDot) {
+        int iconRight = iconContainer.getRight();
+        int iconTop = iconContainer.getTop();
+        float iconTranslationY = iconContainer.getTranslationY();
+
+        int targetLeft = isDot ? (iconRight - (int) (12 * density)) : (iconRight - (int) (16 * density));
+        int targetTop = isDot ? ((int) (iconTop + iconTranslationY + (2 * density))) : ((int) (iconTop + iconTranslationY - (2 * density)));
+
+        int currentLeft = badge.getLeft();
+        int currentTop = badge.getTop();
+
+        if (currentLeft != 0 || currentTop != 0) {
+            badge.setTranslationX(targetLeft - currentLeft);
+            badge.setTranslationY(targetTop - currentTop);
+        } else {
+            ViewGroup.LayoutParams lp = badge.getLayoutParams();
+            if (lp instanceof FrameLayout.LayoutParams) {
+                FrameLayout.LayoutParams flp = (FrameLayout.LayoutParams) lp;
+                flp.gravity = Gravity.TOP | Gravity.END;
+                flp.topMargin = (int) (2 * density);
+                flp.rightMargin = (int) (6 * density);
+                badge.setLayoutParams(flp);
+            }
+        }
+    }
+
+    private static void findBadgeViewsRecursive(View view, List<View> outBadges) {
+        if (view == null) return;
+        if (view.getId() != View.NO_ID) {
+            try {
+                String entryName = view.getResources().getResourceEntryName(view.getId());
+                if (entryName != null) {
+                    if (entryName.contains("active_indicator")) {
+                        return; // Ignore active tab background indicator shape
+                    }
+                    if (entryName.contains("badge") || entryName.contains("indicator")) {
+                        outBadges.add(view);
+                        return;
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+        String className = view.getClass().getName();
+        if ((className.contains("Badge") || className.endsWith("BadgeView")) && !className.contains("ActiveIndicator")) {
+            outBadges.add(view);
+            return;
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                findBadgeViewsRecursive(group.getChildAt(i), outBadges);
+            }
+        }
     }
 
     private static void applyCustomSizesToTabItem(ViewGroup viewGroup, int iconSizeDp, int textSizeSp, float density) {
