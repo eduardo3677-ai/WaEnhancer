@@ -290,9 +290,10 @@ public class FeatureLoader {
 
                         // Inject Booloader Spoofer
                         if (pref.getBoolean("bootloader_spoofer", false)) {
-                            HookBL.hook(loader, pref);
-                            if (Feature.DEBUG) {
-                                ;
+                            try {
+                                HookBL.hook(loader, pref);
+                            } catch (Throwable t) {
+                                XposedBridge.log("[WAEX] Bootloader spoofer error: " + t.getMessage());
                             }
                         }
 

@@ -389,12 +389,12 @@ public class FloatingBottomBar extends Feature {
 
             float density = bar.getContext().getResources().getDisplayMetrics().density;
             int padV = (int) (userVerticalPaddingDp * density);
-            int pillHeight = (int) ((48 + (userVerticalPaddingDp * 2)) * density);
-            if (pillHeight < (int) (40 * density)) {
-                pillHeight = (int) (40 * density);
+            int pillHeight = (int) ((56 + (userVerticalPaddingDp * 2)) * density);
+            if (pillHeight < (int) (48 * density)) {
+                pillHeight = (int) (48 * density);
             }
 
-            bar.setPadding(0, padV, 0, padV);
+            bar.setPadding(0, 0, 0, 0);
 
             int bottomMargin = navigationBarInset(rootView) + (int) (userBottomMarginDp * density);
 
@@ -424,11 +424,13 @@ public class FloatingBottomBar extends Feature {
                 if (child instanceof ViewGroup) {
                     ViewGroup.LayoutParams childLp = child.getLayoutParams();
                     if (childLp != null) {
-                        childLp.height = pillHeight;
+                        childLp.height = ViewGroup.LayoutParams.MATCH_PARENT;
                         child.setLayoutParams(childLp);
                     }
                 }
             }
+
+            applyVerticalPaddingToTabItems(bar, padV);
 
             applyPillStyle(container, bar);
             positionFabsAboveBar(rootView, container);
@@ -442,12 +444,12 @@ public class FloatingBottomBar extends Feature {
     private void updateOverlayLayout(FrameLayout rootView, ViewGroup container, ViewGroup bar) {
         float density = bar.getContext().getResources().getDisplayMetrics().density;
         int padV = (int) (userVerticalPaddingDp * density);
-        int pillHeight = (int) ((48 + (userVerticalPaddingDp * 2)) * density);
-        if (pillHeight < (int) (40 * density)) {
-            pillHeight = (int) (40 * density);
+        int pillHeight = (int) ((56 + (userVerticalPaddingDp * 2)) * density);
+        if (pillHeight < (int) (48 * density)) {
+            pillHeight = (int) (48 * density);
         }
 
-        bar.setPadding(0, padV, 0, padV);
+        bar.setPadding(0, 0, 0, 0);
 
         int bottomMargin = navigationBarInset(rootView) + (int) (userBottomMarginDp * density);
 
@@ -472,9 +474,40 @@ public class FloatingBottomBar extends Feature {
             if (child instanceof ViewGroup) {
                 ViewGroup.LayoutParams childLp = child.getLayoutParams();
                 if (childLp != null) {
-                    childLp.height = pillHeight;
+                    childLp.height = ViewGroup.LayoutParams.MATCH_PARENT;
                     child.setLayoutParams(childLp);
                 }
+            }
+        }
+
+        applyVerticalPaddingToTabItems(bar, padV);
+    }
+
+    private static void applyVerticalPaddingToTabItems(ViewGroup bar, final int padV) {
+        if (bar == null) return;
+        for (int i = 0; i < bar.getChildCount(); i++) {
+            View child = bar.getChildAt(i);
+            if (child instanceof ViewGroup) {
+                ViewGroup menuView = (ViewGroup) child;
+                for (int j = 0; j < menuView.getChildCount(); j++) {
+                    View tabItem = menuView.getChildAt(j);
+                    if (tabItem instanceof ViewGroup) {
+                        ViewGroup itemGroup = (ViewGroup) tabItem;
+                        applyTranslationToTabChildren(itemGroup, padV);
+                        itemGroup.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+                            applyTranslationToTabChildren((ViewGroup) v, padV);
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    private static void applyTranslationToTabChildren(ViewGroup tabItem, int padV) {
+        for (int i = 0; i < tabItem.getChildCount(); i++) {
+            View child = tabItem.getChildAt(i);
+            if (child != null) {
+                child.setTranslationY(padV);
             }
         }
     }

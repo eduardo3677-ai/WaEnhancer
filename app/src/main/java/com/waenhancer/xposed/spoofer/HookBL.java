@@ -86,7 +86,8 @@ public final class HookBL {
 
 
 
-    private static KeyPair parseKeyPair(String key, PublicKey publicKey) throws Throwable {
+    private static KeyPair parseKeyPair(String key, PublicKey publicKey) {
+        if (key == null || key.isEmpty()) return null;
         String base64Key = key.replaceAll("-----\\s*BEGIN[^-]*-----", "")
                              .replaceAll("-----\\s*END[^-]*-----", "")
                              .replaceAll("\\s", "");
@@ -101,18 +102,21 @@ public final class HookBL {
             }
             return new KeyPair(publicKey, privateKey);
         } catch (Throwable t) {
-            // Fallback to BouncyCastle PEMParser
-            Object object;
-            try (PEMParser parser = new PEMParser(new StringReader(key))) {
-                object = parser.readObject();
-            }
-            if (object instanceof PEMKeyPair) {
-                return new JcaPEMKeyConverter().getKeyPair((PEMKeyPair) object);
-            } else if (object instanceof PrivateKeyInfo) {
-                PrivateKey privateKey = new JcaPEMKeyConverter().getPrivateKey((PrivateKeyInfo) object);
-                return new KeyPair(publicKey, privateKey);
-            }
-            throw t;
+            try {
+                // Fallback to BouncyCastle PEMParser
+                Object object;
+                try (PEMParser parser = new PEMParser(new StringReader(key))) {
+                    object = parser.readObject();
+                }
+                if (object instanceof PEMKeyPair) {
+                    return new JcaPEMKeyConverter().getKeyPair((PEMKeyPair) object);
+                } else if (object instanceof PrivateKeyInfo) {
+                    PrivateKey privateKey = new JcaPEMKeyConverter().getPrivateKey((PrivateKeyInfo) object);
+                    return new KeyPair(publicKey, privateKey);
+                }
+            } catch (Throwable ignored) {}
+            XposedBridge.log("[WAEX-BL] KeyPair parse error: " + t.getMessage());
+            return null;
         }
     }
 
@@ -138,9 +142,15 @@ public final class HookBL {
     }
 
 
-    private static Certificate parseCert(String cert) throws Throwable {
-        CertificateFactory cf = CertificateFactory.getInstance("X.509");
-        return cf.generateCertificate(new ByteArrayInputStream(cert.getBytes(StandardCharsets.UTF_8)));
+    private static Certificate parseCert(String cert) {
+        try {
+            if (cert == null || cert.isEmpty()) return null;
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            return cf.generateCertificate(new ByteArrayInputStream(cert.getBytes(StandardCharsets.UTF_8)));
+        } catch (Throwable t) {
+            XposedBridge.log("[WAEX-BL] Certificate parse error: " + t.getMessage());
+            return null;
+        }
     }
 
     private static Extension addHackedExtension(Extension extension) {
@@ -348,25 +358,21 @@ public final class HookBL {
         return certificate;
     }
 
-    private static void parseBootloaderSpooferXml(String xmlContent) throws Throwable {
-
-        // Create DOM parser
+    public static void parseBootloaderSpooferXml(String xmlContent) throws Throwable {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         DocumentBuilder builder = factory.newDocumentBuilder();
         Document doc = builder.parse(new InputSource(new StringReader(xmlContent)));
 
-        // Extract EC key
-        NodeList ecKeys = doc.getElementsByTagName("Key");
-        for (int i = 0; i < ecKeys.getLength(); i++) {
-            Element keyElement = (Element) ecKeys.item(i);
+        NodeList keyNodes = doc.getElementsByTagName("Key");
+
+        for (int i = 0; i < keyNodes.getLength(); i++) {
+            Element keyElement = (Element) keyNodes.item(i);
             String algorithm = keyElement.getAttribute("algorithm");
 
-            // Get private key
             NodeList privateKeyNodes = keyElement.getElementsByTagName("PrivateKey");
             if (privateKeyNodes.getLength() > 0) {
-                String privateKeyContent = privateKeyNodes.item(0).getTextContent().replaceAll("\s{2,}", "");
+                String privateKeyContent = privateKeyNodes.item(0).getTextContent().replaceAll("\\s{2,}", "");
 
-                // Get certificate chain
                 NodeList certChainNodes = keyElement.getElementsByTagName("CertificateChain");
                 if (certChainNodes.getLength() > 0) {
                     Element certChainElement = (Element) certChainNodes.item(0);
@@ -376,14 +382,16 @@ public final class HookBL {
                         certs_EC.clear();
                         for (int j = 0; j < certificateNodes.getLength(); j++) {
                             String certContent = certificateNodes.item(j).getTextContent().replaceAll("\\s{2,}", "");
-                            certs_EC.add(parseCert(certContent));
+                            Certificate c = parseCert(certContent);
+                            if (c != null) certs_EC.add(c);
                         }
                         keyPair_EC = parseKeyPair(privateKeyContent, certs_EC.isEmpty() ? null : certs_EC.getFirst().getPublicKey());
                     } else if ("rsa".equals(algorithm)) {
                         certs_RSA.clear();
                         for (int j = 0; j < certificateNodes.getLength(); j++) {
                             String certContent = certificateNodes.item(j).getTextContent().replaceAll("\\s{2,}", "");
-                            certs_RSA.add(parseCert(certContent));
+                            Certificate c = parseCert(certContent);
+                            if (c != null) certs_RSA.add(c);
                         }
                         keyPair_RSA = parseKeyPair(privateKeyContent, certs_RSA.isEmpty() ? null : certs_RSA.getFirst().getPublicKey());
                     }
