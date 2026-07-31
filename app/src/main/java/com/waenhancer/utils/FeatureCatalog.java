@@ -689,7 +689,7 @@ public class FeatureCatalog {
                                 context.getString(R.string.disable_auto_status_sum),
                                 SearchableFeature.Category.GENERAL,
                                 SearchableFeature.FragmentType.GENERAL,
-                                null,
+                                "general_home",
                                 Arrays.asList("auto", "status", "skip")));
 
                 catalog.add(new SearchableFeature("copystatus",
@@ -697,7 +697,7 @@ public class FeatureCatalog {
                                 context.getString(R.string.enable_copy_status_sum),
                                 SearchableFeature.Category.GENERAL,
                                 SearchableFeature.FragmentType.GENERAL,
-                                null,
+                                "general_home",
                                 Arrays.asList("copy", "status", "caption")));
 
                 catalog.add(new SearchableFeature("toast_viewed_status",
@@ -705,7 +705,7 @@ public class FeatureCatalog {
                                 context.getString(R.string.toast_on_viewed_status_sum),
                                 SearchableFeature.Category.GENERAL,
                                 SearchableFeature.FragmentType.GENERAL,
-                                null,
+                                "general_home",
                                 Arrays.asList("toast", "viewed", "status", "notification")));
 
                 catalog.add(new SearchableFeature("send_audio_as_voice_status",
@@ -713,7 +713,7 @@ public class FeatureCatalog {
                                 context.getString(R.string.send_audio_as_voice_status_sum),
                                 SearchableFeature.Category.GENERAL,
                                 SearchableFeature.FragmentType.GENERAL,
-                                null,
+                                "general_home",
                                 Arrays.asList("audio", "voice", "status", "send", "mp3", "opus", "wav", "m4a", "trim", "crop")));
 
                 catalog.add(new SearchableFeature("customize_status_view_category",
@@ -721,7 +721,7 @@ public class FeatureCatalog {
                                 context.getString(R.string.customize_status_view_desc),
                                 SearchableFeature.Category.GENERAL,
                                 SearchableFeature.FragmentType.GENERAL,
-                                null,
+                                "general_home",
                                 Arrays.asList("status", "customization", "customize", "view", "reply", "gesture")));
 
                 catalog.add(new SearchableFeature("remove_status_bottom_tile",
@@ -729,7 +729,7 @@ public class FeatureCatalog {
                                 context.getString(R.string.remove_status_bottom_tile_sum),
                                 SearchableFeature.Category.GENERAL,
                                 SearchableFeature.FragmentType.GENERAL,
-                                null,
+                                "general_home",
                                 Arrays.asList("status", "bottom", "tile", "swipe", "reply", "hide")));
 
                 catalog.add(new SearchableFeature("disable_status_swipe_up",
@@ -737,7 +737,7 @@ public class FeatureCatalog {
                                 context.getString(R.string.disable_status_swipe_up_sum),
                                 SearchableFeature.Category.GENERAL,
                                 SearchableFeature.FragmentType.GENERAL,
-                                null,
+                                "general_home",
                                 Arrays.asList("status", "swipe", "up", "reply", "disable", "gesture")));
 
                 catalog.add(new SearchableFeature("remove_status_quick_reactions",
@@ -745,7 +745,7 @@ public class FeatureCatalog {
                                 context.getString(R.string.remove_status_quick_reactions_sum),
                                 SearchableFeature.Category.GENERAL,
                                 SearchableFeature.FragmentType.GENERAL,
-                                null,
+                                "general_home",
                                 Arrays.asList("status", "reactions", "quick", "reply", "hide", "emoji")));
 
                 catalog.add(new SearchableFeature("remove_status_heart_button",
@@ -753,7 +753,7 @@ public class FeatureCatalog {
                                 context.getString(R.string.remove_status_heart_button_sum),
                                 SearchableFeature.Category.GENERAL,
                                 SearchableFeature.FragmentType.GENERAL,
-                                null,
+                                "general_home",
                                 Arrays.asList("status", "heart", "like", "button", "hide")));
 
                 catalog.add(new SearchableFeature("add_status_reply_menu_item",
