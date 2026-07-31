@@ -4,7 +4,8 @@
 [Fixed]
 - Crash on startup
 - Fixed Floating Pill design issues
-- Fixed Seen Toast
+- Fixed Message Seen Toast
+- Fixed Status Seen Toast
 
 [Improvements]
 - Optimized Performance

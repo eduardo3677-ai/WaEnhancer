@@ -9,13 +9,10 @@ import androidx.annotation.NonNull;
 import com.waenhancer.xposed.core.Feature;
 import com.waenhancer.xposed.core.WppCore;
 import com.waenhancer.xposed.core.components.FMessageWpp;
-import com.waenhancer.xposed.core.components.FStatusWpp;
 import com.waenhancer.xposed.core.components.WaContactWpp;
 import com.waenhancer.xposed.core.db.MessageStore;
 import com.waenhancer.xposed.core.devkit.Unobfuscator;
 import com.waenhancer.xposed.features.general.Tasker;
-import com.waenhancer.xposed.utils.ReflectionUtils;
-import com.waenhancer.R;
 import com.waenhancer.xposed.utils.Utils;
 
 import org.luckypray.dexkit.query.enums.StringMatchType;
@@ -29,7 +26,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import de.robv.android.xposed.XC_MethodHook;
 import android.content.SharedPreferences;
@@ -69,28 +65,24 @@ public class ToastViewer extends Feature {
             XposedBridge.hookMethod(onSeenReceiptForStatus, new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                    if (param.args == null || param.args.length < 2) return;
-                    if (!(param.args[1] instanceof Integer)) return;
-                    int receiptType = (int) param.args[1];
+                    if (param.args == null || param.args.length < 3) return;
+
+                    int receiptType = -1;
+                    if (param.args[2] instanceof Integer) {
+                        receiptType = (int) param.args[2];
+                    } else if (param.args[1] instanceof Integer) {
+                        receiptType = (int) param.args[1];
+                    }
+
                     if (receiptType != 13) return;
 
-                    var fStatusField = ReflectionUtils.findFieldUsingFilter(param.thisObject.getClass(),
-                            f -> FStatusWpp.TYPE != null && FStatusWpp.TYPE.isAssignableFrom(f.getType()));
-                    if (fStatusField == null) return;
-
-                    Object rawFStatus = fStatusField.get(param.thisObject);
-                    if (rawFStatus == null) return;
-
-                    var fStatus = new FStatusWpp(rawFStatus);
-                    var fStatusKey = fStatus.getFStatusKey();
-                    if (fStatusKey == null || !fStatusKey.isFromMe) return;
-
                     var userJid = new FMessageWpp.UserJid(param.args[0]);
-                    var waContact = WaContactWpp.getWaContactFromJid(userJid);
-                    String contactName = (waContact != null && !TextUtils.isEmpty(waContact.getDisplayName()))
-                            ? waContact.getDisplayName() : userJid.getPhoneNumber();
+                    String contactName = WppCore.getContactName(userJid);
                     if (TextUtils.isEmpty(contactName)) {
-                        contactName = WppCore.getContactName(userJid);
+                        var waContact = WaContactWpp.getWaContactFromJid(userJid);
+                        if (waContact != null && !TextUtils.isEmpty(waContact.getDisplayName())) {
+                            contactName = waContact.getDisplayName();
+                        }
                     }
                     if (TextUtils.isEmpty(contactName)) {
                         contactName = userJid.getPhoneNumber();
