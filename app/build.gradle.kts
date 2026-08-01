@@ -1,6 +1,7 @@
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import java.io.FileInputStream
+import java.util.Base64
 import java.util.Locale
 import java.util.Properties
 
@@ -63,7 +64,7 @@ android {
 
         fun obfuscate(input: String): String {
             if (input.isEmpty()) return ""
-            return java.util.Base64.getEncoder().encodeToString(input.toByteArray(Charsets.UTF_8))
+            return Base64.getEncoder().encodeToString(input.toByteArray(Charsets.UTF_8))
         }
 
         buildConfigField("String", "AZURE_TK", "\"" + obfuscate(azureTranslatorKey) + "\"")
