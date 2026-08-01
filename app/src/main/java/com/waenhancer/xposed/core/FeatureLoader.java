@@ -98,7 +98,7 @@ import com.waenhancer.xposed.features.others.ProStatusSplitter;
 import com.waenhancer.xposed.features.others.RecoverDeletedMedia;
 import com.waenhancer.xposed.features.others.SendAudioAsVoiceStatus;
 import com.waenhancer.xposed.features.others.SettingsInjector;
-import com com.waenhancer.xposed.features.others.StatusCustomization;
+import com.waenhancer.xposed.features.others.StatusCustomization;
 import com.waenhancer.xposed.features.others.Stickers;
 import com.waenhancer.xposed.features.others.TextStatusComposer;
 import com.waenhancer.xposed.features.others.ToastViewer;
