@@ -3132,6 +3132,11 @@ public class Unobfuscator {
                 () -> findFirstClassUsingStrings(classLoader, StringMatchType.Contains, "TranscriptionSegment("));
     }
 
+    public static synchronized Method loadSendPreviewMethod(ClassLoader classLoader) throws Exception {
+        return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> findFirstMethodUsingStrings(classLoader,
+                StringMatchType.Contains, "sendpreview"));
+    }
+
     public static synchronized Method loadStateChangeMethod(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> findFirstMethodUsingStrings(classLoader,
                 StringMatchType.Contains, "presencestatemanager/startTransitionToUnavailable/new-state"));
