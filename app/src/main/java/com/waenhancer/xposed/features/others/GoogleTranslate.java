@@ -41,11 +41,8 @@ public class GoogleTranslate extends Feature {
 
     private static String deobfuscate(String input) {
         if (input == null || input.isEmpty()) return "";
-        char[] chars = new char[input.length()];
-        for (int i = 0; i < input.length(); i++) {
-            chars[i] = (char) (input.charAt(i) ^ 0x37);
-        }
-        return new String(chars);
+        byte[] decoded = java.util.Base64.getDecoder().decode(input);
+        return new String(decoded, java.nio.charset.StandardCharsets.UTF_8);
     }
 
     private static String getTranslatorKey() {

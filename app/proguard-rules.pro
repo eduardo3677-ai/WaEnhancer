@@ -159,11 +159,15 @@
 -dontwarn org.bouncycastle.**
 -dontwarn org.slf4j.**
 
-# Firebase keep rules — required because App.java and HomeFragment.java access Firebase
-# via reflection (Class.forName / getMethod). Without these, R8 renames or removes
-# the classes and the reflection fails silently with ClassNotFoundException.
--keep class com.google.firebase.** { *; }
--keep class com.google.android.gms.** { *; }
+# Firebase keep rules — no longer used but suppress warnings from transitive deps
+-dontwarn com.google.firebase.**
+-dontwarn com.google.android.gms.**
+-dontwarn com.google.auto.value.**
+
+# Missing classes from arscblamer transitive deps
+-dontwarn com.google.auto.value.AutoValue
+-dontwarn com.google.auto.value.AutoValue$Builder
+-dontwarn com.google.auto.value.AutoValue$1
 
 # Markwon and Commonmark warning suppression
 -dontwarn org.commonmark.**

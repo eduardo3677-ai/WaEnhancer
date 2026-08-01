@@ -1509,44 +1509,7 @@
               "value_type": "boolean",
               "default": false,
               "title": "Audio transcription",
-              "summary": "Enable native WhatsApp audio transcription (Check the connection menu for transcription options)"
-            },
-            {
-              "key": "transcription_provider",
-              "type": "list",
-              "value_type": "string",
-              "default": "assemblyai",
-              "title": "Transcription Provider",
-              "summary": "Choose the AI service for audio transcription",
-              "dep": "audio_transcription",
-              "entries": [
-                {
-                  "label": "AssemblyAI",
-                  "value": "assemblyai"
-                },
-                {
-                  "label": "Groq AI (Whisper v3 Turbo)",
-                  "value": "groq"
-                }
-              ]
-            },
-            {
-              "key": "assemblyai_key",
-              "type": "text",
-              "value_type": "string",
-              "default": null,
-              "title": "AssemblyAI API Key",
-              "summary": "AssemblyAI API access key (Get it at assemblyai.com)",
-              "dep": "audio_transcription"
-            },
-            {
-              "key": "groq_api_key",
-              "type": "text",
-              "value_type": "string",
-              "default": null,
-              "title": "Groq API Key",
-              "summary": "Groq API access key (Get it at console.groq.com)",
-              "dep": "audio_transcription"
+              "summary": "Enable audio transcription powered by Azure AI Foundry (Whisper)"
             }
           ]
         }

@@ -359,7 +359,7 @@
     <string name="disabled">Disabled</string>
     <string name="share_as_status">Share as Status</string>
     <string name="audio_transcription">Audio transcription</string>
-    <string name="audio_transcription_sum">Enable native WhatsApp audio transcription (Check the connection menu for transcription options)</string>
+    <string name="audio_transcription_sum">Enable audio transcription powered by Azure AI Foundry (Whisper)</string>
     <string name="viewed_your_status">%s viewed your status</string>
     <string name="viewed_your_message">%s viewed your message</string>
     <string name="old_statuses">Old Statuses</string>
@@ -480,8 +480,8 @@
     <string name="assemblyai_key_sum">AssemblyAI API access key (Get it at assemblyai.com)</string>
     <string name="groq_api_key">Groq API Key</string>
     <string name="groq_api_key_sum">Groq API access key (Get it at console.groq.com)</string>
-    <string name="google_translate">Enable Google Translate</string>
-    <string name="google_translate_sum">Replaces Whatsapp\'s native translator with Google Translate</string>
+    <string name="google_translate">Enable Azure Translate</string>
+    <string name="google_translate_sum">Replaces WhatsApp\'s native translator with Azure AI Translator</string>
     <string name="show_contact_info">Show in contact info</string>
     <string name="show_contact_info_menu">Show in contact info menu</string>
     <string name="block_call">Block Call</string>

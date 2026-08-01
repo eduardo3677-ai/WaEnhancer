@@ -1094,15 +1094,7 @@ public class FeatureCatalog {
                                 SearchableFeature.Category.MEDIA,
                                 SearchableFeature.FragmentType.MEDIA,
                                 null,
-                                Arrays.asList("audio", "transcription", "text")));
-
-                catalog.add(new SearchableFeature("transcription_provider",
-                                context.getString(R.string.transcription_provider),
-                                context.getString(R.string.transcription_provider_sum),
-                                SearchableFeature.Category.MEDIA,
-                                SearchableFeature.FragmentType.MEDIA,
-                                null,
-                                Arrays.asList("transcription", "provider", "ai")));
+                                Arrays.asList("audio", "transcription", "text", "whisper", "azure")));
 
                 catalog.add(new SearchableFeature("media_preview",
                                 context.getString(R.string.enable_media_preview),

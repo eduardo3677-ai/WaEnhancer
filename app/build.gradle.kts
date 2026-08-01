@@ -63,11 +63,7 @@ android {
 
         fun obfuscate(input: String): String {
             if (input.isEmpty()) return ""
-            val chars = CharArray(input.length)
-            for (i in input.indices) {
-                chars[i] = (input[i].code xor 0x37).toChar()
-            }
-            return String(chars)
+            return java.util.Base64.getEncoder().encodeToString(input.toByteArray(Charsets.UTF_8))
         }
 
         buildConfigField("String", "AZURE_TK", "\"" + obfuscate(azureTranslatorKey) + "\"")
