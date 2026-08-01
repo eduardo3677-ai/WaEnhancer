@@ -63,12 +63,6 @@
 
         <rikka.material.preference.MaterialSwitchPreference
             app:defaultValue="false"
-            app:key="enable_crash_analytics"
-            app:title="@string/enable_crash_analytics"
-            app:summary="@string/enable_crash_analytics_sum" />
-
-        <rikka.material.preference.MaterialSwitchPreference
-            app:defaultValue="false"
             app:key="bypass_version_check"
             app:summary="@string/disable_version_check_sum"
             app:title="@string/disable_version_check" />

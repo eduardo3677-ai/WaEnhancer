@@ -5,45 +5,18 @@ on:
     branches: ["master", "beta"]
 
 jobs:
-  check-build-flag:
-    runs-on: ubuntu-latest
-    outputs:
-      should_build: ${{ steps.flags.outputs.should_build }}
-      release_type: ${{ steps.flags.outputs.release_type }}
-    steps:
-      - name: Detect build flag and release type
-        id: flags
-        run: |
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
-          BRANCH="${GITHUB_REF#refs/heads/}"
-
-          if [[ "$COMMIT_MSG" =~ [[:space:]]--build$ ]]; then
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "should_build=false" >> "$GITHUB_OUTPUT"
-          fi
-
-          if [[ "$BRANCH" == "beta" ]]; then
-            echo "release_type=beta" >> "$GITHUB_OUTPUT"
-          else
-            echo "release_type=stable" >> "$GITHUB_OUTPUT"
-          fi
-
   build:
-    needs: check-build-flag
-    if: needs.check-build-flag.outputs.should_build == 'true'
     permissions: write-all
     runs-on: ubuntu-latest
     env:
-      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-      CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
-      NOTICES_URL: ${{ secrets.NOTICES_URL }}
+      KEY_STORE: ${{ secrets.KEY_STORE }}
+      KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+      ALIAS: ${{ secrets.ALIAS }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -173,52 +146,19 @@ jobs:
           git commit -m "chore(release): bump to ${NEW_VERSION_NAME} (${NEW_VERSION_CODE}) [skip ci]"
           git push
 
-      - name: Setup Google Services
-        env:
-          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        run: |
-          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
-            # Check if it starts with { (raw JSON) or needs decoding
-            if [[ "$GOOGLE_SERVICES_JSON" == \{* ]]; then
-              echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
-              echo "Google Services: Configuration injected from raw JSON secret"
-            else
-              echo "$GOOGLE_SERVICES_JSON" | base64 --decode > app/google-services.json
-              echo "Google Services: Configuration injected from base64 secret"
-            fi
-            
-            # Verify file exists and is not empty
-            if [ -s "app/google-services.json" ]; then
-              echo "Google Services: app/google-services.json created successfully"
-            else
-              echo "::warning::Google Services file was not created or is empty!"
-            fi
-          else
-            echo "Google Services: GOOGLE_SERVICES_JSON secret is missing. Crashlytics will be disabled for this build."
-          fi
-
       - name: Build WhatsApp flavor
         run: |
           BUILD_TASKS="assembleWhatsappRelease assembleWhatsappDebug"
-          if [ -s "app/google-services.json" ]; then
-            BUILD_TASKS="$BUILD_TASKS uploadCrashlyticsMappingFileWhatsappRelease"
-          fi
           
-          NOTICES_URL_FLAG=""
-          if [ -n "$NOTICES_URL" ]; then
-            NOTICES_URL_FLAG="-PNOTICES_URL=${NOTICES_URL}"
-          fi
-
           if [ -n "${{ secrets.KEY_STORE }}" ]; then
             echo "${{ secrets.KEY_STORE }}" | base64 --decode > release.jks
             ./gradlew $BUILD_TASKS -Pminify=true \
               -PandroidStoreFile=release.jks \
               -PandroidStorePassword='${{ secrets.KEY_STORE_PASSWORD }}' \
               -PandroidKeyAlias='${{ secrets.ALIAS }}' \
-              -PandroidKeyPassword='${{ secrets.KEY_PASSWORD }}' \
-              $NOTICES_URL_FLAG
+              -PandroidKeyPassword='${{ secrets.KEY_PASSWORD }}'
           else
-            ./gradlew $BUILD_TASKS -Pminify=true $NOTICES_URL_FLAG
+            ./gradlew $BUILD_TASKS -Pminify=true
           fi
 
       - name: Rename APK to versioned name

@@ -23,7 +23,6 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Binder;
 import android.util.Log;
-import com.google.firebase.crashlytics.FirebaseCrashlytics;
 import com.waenhancer.BuildConfig;
 import com.waenhancer.utils.AnalyticsManager;
 import com.waenhancer.utils.WhatsAppCrashException;
@@ -67,39 +66,9 @@ public class HookProvider extends ContentProvider {
                 return null;
             }
             if ("record_event".equals(method) && extras != null) {
-                if (!prefs.getBoolean("enable_crash_analytics", false)) {
-                    return Bundle.EMPTY;
-                }
-                String eventName = extras.getString("event_name");
-                Bundle params = extras.getBundle("params");
-                if (eventName != null) {
-                    AnalyticsManager.logEvent(context, eventName, params);
-                }
                 return Bundle.EMPTY;
             }
             if ("record_crash".equals(method) && extras != null) {
-                if (BuildConfig.DEBUG || !prefs.getBoolean("enable_crash_analytics", false)) {
-                    return Bundle.EMPTY;
-                }
-                String stacktrace = extras.getString("stacktrace");
-                if (stacktrace != null && !stacktrace.isEmpty()) {
-                    try {
-                        // Dynamically check if Firebase is initialized first
-                        Class<?> firebaseAppClass = Class.forName("com.google.firebase.FirebaseApp");
-                        try {
-                            firebaseAppClass.getMethod("getInstance").invoke(null);
-                        } catch (Exception e) {
-                            // Try to initialize it if not initialized
-                            firebaseAppClass.getMethod("initializeApp", Context.class).invoke(null, context.getApplicationContext());
-                        }
-
-                        /* Log removed */
-                        FirebaseCrashlytics.getInstance().recordException(
-                                new WhatsAppCrashException("WhatsApp Crash: \n" + stacktrace));
-                    } catch (Throwable t) {
-                        Log.e("WAEX_Provider", "Failed to record crash to Crashlytics: " + t.getMessage());
-                    }
-                }
                 return Bundle.EMPTY;
             }
 

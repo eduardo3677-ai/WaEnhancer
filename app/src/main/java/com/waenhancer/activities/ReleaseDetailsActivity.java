@@ -144,8 +144,8 @@ public class ReleaseDetailsActivity extends BaseActivity {
                     .connectTimeout(15, TimeUnit.SECONDS)
                     .build();
 
-            // Fetch from mubashardev/WaEnhancer as requested
-            String url = "https://api.github.com/repos/mubashardev/WaEnhancer/releases/tags/" + tagName;
+            // Fetch from eduardo3677-ai/WaEnhancer as requested
+            String url = "https://api.github.com/repos/eduardo3677-ai/WaEnhancer/releases/tags/" + tagName;
 
             var requestBuilder = new Request.Builder()
                     .url(url)

@@ -923,55 +923,15 @@ public class SettingsInjector extends Feature {
                     containerLayout.setPadding(pad24, pad24, pad24, pad24);
                     scrollView.addView(containerLayout);
 
-                    // ── Read license state from Utils.xprefs (module prefs, already loaded at hook time) ──
-                    String proStatus;
-                    String planName;
+                    // ── License state forced to ACTIVE — all features unlocked ──
+                    String proStatus = "ACTIVE";
+                    String planName = "Pro Active";
                     long expiresAt = 0;
                     String tgUsername = "";
                     String licenseKey = "";
-                    try {
-                        // Utils.xprefs is the XSharedPreferences pointing at the module app's
-                        // DefaultSharedPreferences — this is the authoritative source for license data.
-                        SharedPreferences xp = Utils.xprefs;
-                        if (xp == null) {
-                            // Fallback: reload via reflection
-                            xp = (SharedPreferences)
-                                    Class.forName("com.waenhancer.xposed.utils.Utils")
-                                         .getField("xprefs").get(null);
-                        }
 
-                        boolean isVerified = xp != null && xp.getBoolean("is_pro_verified", false);
-                        String rawKey = xp != null ? xp.getString("license_key", "").trim() : "";
-
-                        if (xp != null) {
-                            try { expiresAt = xp.getLong("expires_at", 0); }
-                            catch (ClassCastException ignored) {
-                                try { expiresAt = Long.parseLong(xp.getString("expires_at", "0")); }
-                                catch (Exception ignored2) {}
-                            }
-                            tgUsername = xp.getString("tg_username", "");
-                            licenseKey = rawKey;
-                        }
-
-                        if (!isVerified || rawKey.isEmpty()) {
-                            proStatus = "FREE";
-                            planName  = "Free";
-                        } else if (expiresAt > 0 && expiresAt < System.currentTimeMillis()) {
-                            proStatus = "EXPIRED";
-                            String storedPlan = xp != null ? xp.getString("plan_name", "") : "";
-                            planName = storedPlan.isEmpty() ? "Pro Expired" : storedPlan;
-                        } else {
-                            proStatus = "ACTIVE";
-                            String storedPlan = xp != null ? xp.getString("plan_name", "") : "";
-                            planName = storedPlan.isEmpty() ? "Pro Active" : storedPlan;
-                        }
-                    } catch (Throwable t) {
-                        proStatus = "FREE";
-                        planName  = "Free";
-                    }
-
-                    boolean isActive  = "ACTIVE".equalsIgnoreCase(proStatus);
-                    boolean isExpired = "EXPIRED".equalsIgnoreCase(proStatus);
+                    boolean isActive  = true;
+                    boolean isExpired = false;
 
                     if (isActive || isExpired) {
                         // ─────────────────────────────────────────────

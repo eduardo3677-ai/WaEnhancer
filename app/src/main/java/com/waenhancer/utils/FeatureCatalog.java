@@ -114,14 +114,6 @@ public class FeatureCatalog {
                                 "general_home",
                                 Arrays.asList("toast", "hook", "loading", "snackbar", "please wait")));
 
-                catalog.add(new SearchableFeature("enable_crash_analytics",
-                                context.getString(R.string.enable_crash_analytics),
-                                context.getString(R.string.enable_crash_analytics_sum),
-                                SearchableFeature.Category.GENERAL_HOME,
-                                SearchableFeature.FragmentType.GENERAL,
-                                "general_home",
-                                Arrays.asList("crash", "logs", "analytics", "firebase", "anonymous", "share", "bug")));
-
                 catalog.add(new SearchableFeature("bypass_version_check",
                                 context.getString(R.string.disable_version_check),
                                 context.getString(R.string.disable_version_check_sum),

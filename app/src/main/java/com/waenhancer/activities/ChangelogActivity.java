@@ -69,7 +69,7 @@ public class ChangelogActivity extends BaseActivity {
     private final List<JSONObject> stableReleases = new ArrayList<>();
     private final List<JSONObject> betaReleases = new ArrayList<>();
     private boolean downgradesEnabled = false;
-    private static final String RELEASES_API = "https://api.github.com/repos/mubashardev/WaEnhancer/releases";
+    private static final String RELEASES_API = "https://api.github.com/repos/eduardo3677-ai/WaEnhancer/releases";
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -599,7 +599,7 @@ public class ChangelogActivity extends BaseActivity {
                     try {
                         Context context = v.getContext();
                         Intent intent = new Intent(Intent.ACTION_VIEW,
-                                Uri.parse("https://github.com/mubashardev/WaEnhancer/releases"));
+                                Uri.parse("https://github.com/eduardo3677-ai/WaEnhancer/releases"));
                         context.startActivity(intent);
                     } catch (Exception ignored) {
                     }
@@ -645,7 +645,7 @@ public class ChangelogActivity extends BaseActivity {
                 }
             });
 
-            String htmlUrl = release.optString("html_url", "https://github.com/mubashardev/WaEnhancer/releases");
+            String htmlUrl = release.optString("html_url", "https://github.com/eduardo3677-ai/WaEnhancer/releases");
             btnGithub.setOnClickListener(v -> {
                 try {
                     Context context = v.getContext();

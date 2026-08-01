@@ -83,7 +83,7 @@ import java.util.concurrent.TimeUnit;
 
 public class HomeFragment extends BaseFragment {
 
-    private static final String RELEASES_URL = "https://github.com/mubashardev/WaEnhancer/releases";
+    private static final String RELEASES_URL = "https://github.com/eduardo3677-ai/WaEnhancer/releases";
 
     /**
      * In-memory flag — reset to false every time the app process starts.
@@ -338,7 +338,7 @@ public class HomeFragment extends BaseFragment {
                                     + "\n---\n"
                                     + description + "\n";
 
-                            String url = "https://github.com/mubashardev/WaEnhancer/issues/new?title="
+                            String url = "https://github.com/eduardo3677-ai/WaEnhancer/issues/new?title="
                                     + URLEncoder.encode(title, "UTF-8") + "&body="
                                     + URLEncoder.encode(body, "UTF-8");
                             openUrl(requireContext(), url);
@@ -362,7 +362,7 @@ public class HomeFragment extends BaseFragment {
 
         binding.githubBtn.setOnClickListener(view -> {
             animateClick(view);
-            openUrl(requireContext(), "https://github.com/mubashardev/WaEnhancer/issues");
+            openUrl(requireContext(), "https://github.com/eduardo3677-ai/WaEnhancer/issues");
         });
 
         binding.clearCacheBtn.setOnClickListener(view -> {
@@ -404,55 +404,7 @@ public class HomeFragment extends BaseFragment {
     }
 
     private void showConsentDialogIfNeeded() {
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
-        if (!prefs.contains("consent_crashlytics_asked")) {
-            BottomSheetDialog dialog = new BottomSheetDialog(requireContext());
-            View view = LayoutInflater.from(requireContext()).inflate(R.layout.bottom_sheet_action, null);
-            dialog.setContentView(view);
-            dialog.setCancelable(false);
-
-            ((MaterialTextView) view.findViewById(R.id.bs_title)).setText("Share Anonymous Crash Logs");
-            ((MaterialTextView) view.findViewById(R.id.bs_message)).setText(
-                    "Help us fix bugs by sharing anonymous crash logs.\n\n" +
-                    "No personally identifiable information is collected. " +
-                    "You can always change this preference later in Settings → General.");
-
-            MaterialButton acceptBtn = view.findViewById(R.id.bs_confirm_btn);
-            acceptBtn.setText("Accept");
-            acceptBtn.setOnClickListener(v -> {
-                prefs.edit()
-                        .putBoolean("consent_crashlytics_asked", true)
-                        .putBoolean("enable_crash_analytics", true)
-                        .apply();
-                // FirebaseInitProvider has already initialised the Firebase App object.
-                // We just need to enable collection — no initializeApp call needed.
-                if (BuildConfig.FIREBASE_ENABLED && !BuildConfig.DEBUG) {
-                    App.applyFirebaseConsent(requireContext(), true);
-                }
-                dialog.dismiss();
-            });
-
-            MaterialButton declineBtn = view.findViewById(R.id.bs_cancel_btn);
-            declineBtn.setText("Decline");
-            declineBtn.setOnClickListener(v -> {
-                prefs.edit()
-                        .putBoolean("consent_crashlytics_asked", true)
-                        .putBoolean("enable_crash_analytics", false)
-                        .apply();
-                // Explicitly disable in the current process (not just on next launch).
-                if (BuildConfig.FIREBASE_ENABLED && !BuildConfig.DEBUG) {
-                    App.applyFirebaseConsent(requireContext(), false);
-                }
-                dialog.dismiss();
-            });
-
-            View bottomSheet = dialog.findViewById(com.google.android.material.R.id.design_bottom_sheet);
-            if (bottomSheet != null) {
-                bottomSheet.setBackgroundResource(android.R.color.transparent);
-            }
-
-            dialog.show();
-        }
+        // Firebase removed — no consent dialog needed
     }
 
 
@@ -554,64 +506,27 @@ public class HomeFragment extends BaseFragment {
         if (binding == null || getContext() == null) {
             return;
         }
-        boolean isPro = ProHelper.isProEnabled();
-        String planName = ProHelper.getProPlanName();
-        String proStatus = ProHelper.getProStatus();
+        boolean isPro = true;
+        String planName = "Pro Active";
+        String proStatus = "ACTIVE";
 
         if (binding.proStatusChip != null) {
-            String text;
-            boolean packageInstalled = ProHelper.isPluginPackageInstalled(getContext());
-            boolean pluginInstalled = ProHelper.isPluginInstalled(getContext());
-            boolean isRedDotError = false;
+            binding.proStatusChip.setText(planName);
 
-            if (packageInstalled && !pluginInstalled) {
-                // Plugin is installed, but unsupported (since pluginInstalled is false)
-                int minVersion = ProHelper.getPluginMinWaexVersion(getContext());
-                String minVersionName = ProHelper.getVersionNameFromCode(minVersion);
-                text = "v" + minVersionName + " Required";
-            } else if (!packageInstalled) {
-                if (!"FREE".equalsIgnoreCase(proStatus)) {
-                    // License activated in module but Pro plugin app is not installed
-                    text = planName;
-                    isRedDotError = true;
-                } else {
-                    text = "Free";
-                }
-            } else if ("ACTIVE".equalsIgnoreCase(proStatus)) {
-                text = planName;
-            } else if ("EXPIRED".equalsIgnoreCase(proStatus)) {
-                text = "License Expired";
+            TypedValue typedValueContainer = new TypedValue();
+            TypedValue typedValuePrimary = new TypedValue();
+            if (requireContext().getTheme().resolveAttribute(com.google.android.material.R.attr.colorPrimaryContainer, typedValueContainer, true)) {
+                binding.proStatusChip.setBackgroundTintList(ColorStateList.valueOf(typedValueContainer.data));
             } else {
-                text = "Free";
+                binding.proStatusChip.setBackgroundTintList(null);
             }
-            binding.proStatusChip.setText(text);
-
-            // Dynamically update chip's background tint and text colors based on status
-            if ((packageInstalled && !pluginInstalled) || "EXPIRED".equalsIgnoreCase(proStatus) || isRedDotError) {
-                // Light red background with dark red text for Expired Pro / Plugin Required / Red Dot Error
-                binding.proStatusChip.setBackgroundTintList(ColorStateList.valueOf(0xFFFFEBEE));
-                binding.proStatusChip.setTextColor(0xFFC62828);
+            if (requireContext().getTheme().resolveAttribute(android.R.attr.colorPrimary, typedValuePrimary, true)) {
+                binding.proStatusChip.setTextColor(typedValuePrimary.data);
             } else {
-                // Standard default background tint and primary color text for Free status and Active/Pro status
-                TypedValue typedValueContainer = new TypedValue();
-                TypedValue typedValuePrimary = new TypedValue();
-                if (requireContext().getTheme().resolveAttribute(com.google.android.material.R.attr.colorPrimaryContainer, typedValueContainer, true)) {
-                    binding.proStatusChip.setBackgroundTintList(ColorStateList.valueOf(typedValueContainer.data));
-                } else {
-                    binding.proStatusChip.setBackgroundTintList(null); // fallback
-                }
-                if (requireContext().getTheme().resolveAttribute(android.R.attr.colorPrimary, typedValuePrimary, true)) {
-                    binding.proStatusChip.setTextColor(typedValuePrimary.data);
-                } else {
-                    binding.proStatusChip.setTextColor(0xFF000000); // generic fallback
-                }
+                binding.proStatusChip.setTextColor(0xFF000000);
             }
 
-            if (isRedDotError) {
-                binding.proStatusChip.setCompoundDrawablesWithIntrinsicBounds(R.drawable.status_dot_inactive, 0, R.drawable.ic_chevron_right, 0);
-            } else {
-                binding.proStatusChip.setCompoundDrawablesWithIntrinsicBounds(0, 0, R.drawable.ic_chevron_right, 0);
-            }
+            binding.proStatusChip.setCompoundDrawablesWithIntrinsicBounds(0, 0, R.drawable.ic_chevron_right, 0);
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 binding.proStatusChip.setCompoundDrawableTintList(binding.proStatusChip.getTextColors());

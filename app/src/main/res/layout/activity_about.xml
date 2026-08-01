@@ -63,7 +63,7 @@
                     android:letterSpacing="-0.03"
                     android:textStyle="bold" />
 
-                <!-- Maintainer badge - mubashardev as dominant -->
+                <!-- Maintainer badge - eduardo3677-ai as dominant -->
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"

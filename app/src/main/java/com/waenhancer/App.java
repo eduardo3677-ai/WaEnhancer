@@ -67,66 +67,7 @@ public class App extends Application {
         instance = this;
         
         if (Application.getProcessName().equals(BuildConfig.APPLICATION_ID)) {
-            // Re-apply Firebase consent state from the saved preference.
-            // FirebaseInitProvider (restored in the manifest) auto-inits the Firebase App object,
-            // but collection stays OFF (manifest default = false) until we explicitly enable it.
-            // This block re-enables collection on subsequent launches for users who already consented.
-            if (BuildConfig.FIREBASE_ENABLED && !BuildConfig.DEBUG) {
-                try {
-                    boolean consented = PreferenceManager.getDefaultSharedPreferences(this)
-                            .getBoolean("enable_crash_analytics", false);
-                    applyFirebaseConsent(this, consented);
-                } catch (Throwable e) {
-                    if (BuildConfig.DEBUG) Log.e("WaeX-Firebase", "Failed to apply Firebase consent state", e);
-                }
-            }
-
-
-            // Local expiration check (offline fail-safe)
-            try {
-                var sharedPrefs = PreferenceManager.getDefaultSharedPreferences(App.this);
-                long expiresAt = 0;
-                try {
-                    expiresAt = sharedPrefs.getLong("expires_at", 0);
-                } catch (ClassCastException e) {
-                    try {
-                        String expiresStr = sharedPrefs.getString("expires_at", "0");
-                        expiresAt = Long.parseLong(expiresStr);
-                    } catch (Exception ignored) {}
-                }
-                boolean isProVerified = sharedPrefs.getBoolean("is_pro_verified", false);
-                if (isProVerified && expiresAt > 0 && expiresAt < System.currentTimeMillis()) {
-                    sharedPrefs.edit()
-                            .putBoolean("is_pro_verified", false)
-                            .remove("encrypted_config")
-                            .putBoolean("message_bomber", false)
-                            .putBoolean("delete_message_file", false)
-                            .putBoolean("delete_message_file_sent", false)
-                            .putString("floating_bottom_bar_pill_design", "regular")
-                            .commit();
-                    ProHelper.setForceFree(true);
-                    
-                    Utils.handleSubscriptionDowngrade(App.this, "Your subscription plan has expired.");
-                    
-                    try {
-                        LicenseManager.makePrefsWorldReadable(App.this);
-                    } catch (Exception ignored) {}
-
-                    try {
-                        restartApp("com.whatsapp");
-                    } catch (Exception ignored) {}
-                    try {
-                        restartApp("com.whatsapp.w4b");
-                    } catch (Exception ignored) {}
-                }
-            } catch (Throwable ignored) {}
-
-            // Perform silent background license re-verification at startup
-            try {
-                LicenseManager.silentCheck(App.this);
-            } catch (Exception e) {
-                Log.e("WaeX-App", "Failed to invoke silentCheck", e);
-            }
+            // Silent background license re-verification disabled — all features unlocked
         }
         
         var sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
@@ -238,40 +179,6 @@ public class App extends Application {
         Intent intent = new Intent(BuildConfig.APPLICATION_ID + ".WHATSAPP.RESTART");
         intent.putExtra("PKG", packageWpp);
         sendBroadcast(intent);
-    }
-
-    /**
-     * Enables or disables Firebase Analytics and Crashlytics collection at runtime.
-     * Should only be called when {@link BuildConfig#FIREBASE_ENABLED} is {@code true}.
-     * Uses reflection so the code compiles even when Firebase is not on the classpath
-     * (i.e. when building without google-services.json).
-     *
-     * @param context  any valid Context
-     * @param enabled  {@code true} = user has consented; {@code false} = user has declined or revoked
-     */
-    public static void applyFirebaseConsent(Context context, boolean enabled) {
-        try {
-            Class<?> analyticsClass = Class.forName("com.google.firebase.analytics.FirebaseAnalytics");
-            Object analyticsInstance = analyticsClass
-                    .getMethod("getInstance", Context.class)
-                    .invoke(null, context.getApplicationContext());
-            analyticsClass
-                    .getMethod("setAnalyticsCollectionEnabled", boolean.class)
-                    .invoke(analyticsInstance, enabled);
-        } catch (Throwable e) {
-            if (BuildConfig.DEBUG) Log.e("WaeX-Firebase", "Analytics consent apply failed", e);
-        }
-        try {
-            Class<?> crashlyticsClass = Class.forName("com.google.firebase.crashlytics.FirebaseCrashlytics");
-            Object crashlyticsInstance = crashlyticsClass
-                    .getMethod("getInstance")
-                    .invoke(null);
-            crashlyticsClass
-                    .getMethod("setCrashlyticsCollectionEnabled", boolean.class)
-                    .invoke(crashlyticsInstance, enabled);
-        } catch (Throwable e) {
-            if (BuildConfig.DEBUG) Log.e("WaeX-Firebase", "Crashlytics consent apply failed", e);
-        }
     }
 
     public static void changeLanguage(Context context) {

@@ -616,7 +616,7 @@ public class BottomSheetHelper {
         }
 
         okhttp3.Request request = new okhttp3.Request.Builder()
-                .url("https://api.github.com/repos/mubashardev/WaEnhancer/stats/contributors")
+                .url("https://api.github.com/repos/eduardo3677-ai/WaEnhancer/stats/contributors")
                 .header("User-Agent", "WaEnhancerX-App")
                 .header("Accept", "application/vnd.github.v3+json")
                 .build();
@@ -849,8 +849,8 @@ public class BottomSheetHelper {
         card.addView(gifView);
 
         String url = isPro
-                ? "https://cdn.jsdelivr.net/gh/mubashardev/WaEnhancer@master/demo/pill_pro.gif"
-                : "https://cdn.jsdelivr.net/gh/mubashardev/WaEnhancer@master/demo/pill_regular.gif";
+                ? "https://cdn.jsdelivr.net/gh/eduardo3677-ai/WaEnhancer@master/demo/pill_pro.gif"
+                : "https://cdn.jsdelivr.net/gh/eduardo3677-ai/WaEnhancer@master/demo/pill_regular.gif";
 
         com.bumptech.glide.Glide.with(context)
                 .load(url)

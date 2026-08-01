@@ -55,54 +55,23 @@ public class ProSwitchPreference extends MaterialSwitchPreference {
      * Updates the summary and title dynamically based on the verified status.
      */
     private void updateSummary() {
-        if (!ProHelper.isPluginInstalled(getContext())) {
-            setSummary("Helper Plugin Required");
-            String newTitle = originalTitle + " <font color='#EF4444'><b>[missing helper plugin]</b></font>";
-            setTitle(Html.fromHtml(newTitle, Html.FROM_HTML_MODE_LEGACY));
-            setEnabled(false);
-            return;
-        }
-
-        boolean isVerified = getSafeSharedPreferences().getBoolean("is_pro_verified", false);
+        boolean isVerified = true;
         boolean limitedFree = ProHelper.isLimitedFreePreferenceEnabled(getKey());
 
-        // Pro badge color: Green (#22C55E) if active/verified/limited-free, Red (#EF4444) if inactive
-        String tagColor = (isVerified || limitedFree) ? "#22C55E" : "#EF4444";
+        String tagColor = "#22C55E";
         String newTitle = originalTitle + " <font color='" + tagColor + "'><b>[Pro]</b></font>";
         setTitle(Html.fromHtml(newTitle, Html.FROM_HTML_MODE_LEGACY));
 
-        if (isVerified) {
-            setSummary(originalSummary);
-        } else if (limitedFree) {
+        if (limitedFree) {
             setSummary(originalSummary != null ? originalSummary + " (Limited Free)" : "Status: Limited Free Active");
         } else {
-            setSummary("Activate Pro First");
+            setSummary(originalSummary);
         }
     }
 
     @Override
     protected void onClick() {
-        if (!ProHelper.isPluginInstalled(getContext())) {
-            ProHelper.navigateToPluginPack(getContext());
-            return;
-        }
-
-        boolean isVerified = getSafeSharedPreferences().getBoolean("is_pro_verified", false);
-        boolean limitedFree = ProHelper.isLimitedFreePreferenceEnabled(getKey());
-
-        if (isVerified || limitedFree) {
-            super.onClick();
-        } else {
-            Context context = getContext();
-            try {
-                Class<?> clazz = Class.forName("com.waenhancer.activities.LicenseActivity");
-                Intent intent = new Intent(context, clazz);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                context.startActivity(intent);
-            } catch (ClassNotFoundException e) {
-                Toast.makeText(context, "Pro features are not available.", Toast.LENGTH_SHORT).show();
-            }
-        }
+        super.onClick();
     }
 
     @NonNull

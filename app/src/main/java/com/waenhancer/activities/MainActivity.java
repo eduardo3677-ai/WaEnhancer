@@ -24,7 +24,6 @@ import com.waenhancer.R;
 import com.waenhancer.activities.base.BaseActivity;
 import com.waenhancer.adapter.MainPagerAdapter;
 import com.waenhancer.databinding.ActivityMainBinding;
-import com.waenhancer.notices.NoticeCenter;
 import com.waenhancer.ui.fragments.GeneralFragment;
 import com.waenhancer.ui.fragments.HomeFragment;
 import com.waenhancer.ui.fragments.base.BasePreferenceFragment;
@@ -548,8 +547,6 @@ public class MainActivity extends BaseActivity {
             showDowngradeBottomSheet(downgradeMsg);
         }
 
-        // Remote notices (cached + rate-limited)
-        binding.getRoot().post(() -> NoticeCenter.checkAndShow(this));
     }
 
     @Override

@@ -91,15 +91,9 @@ public class ProListPreference extends ListPreference {
         for (int i = 0; i < entries.length; i++) {
             String val = entryValues[i].toString();
             if (mProValues.contains(val)) {
-                if (ProHelper.isPluginInstalled(getContext())) {
-                    stamped[i] = Html.fromHtml(
-                            entries[i] + " <font color='#8B5CF6'><b>[Pro]</b></font>",
-                            Html.FROM_HTML_MODE_LEGACY);
-                } else {
-                    stamped[i] = Html.fromHtml(
-                            entries[i] + " <font color='#EF4444'><b>[Pro — plugin missing]</b></font>",
-                            Html.FROM_HTML_MODE_LEGACY);
-                }
+                stamped[i] = Html.fromHtml(
+                        entries[i] + " <font color='#22C55E'><b>[Pro]</b></font>",
+                        Html.FROM_HTML_MODE_LEGACY);
             } else {
                 stamped[i] = entries[i];
             }
@@ -225,15 +219,7 @@ public class ProListPreference extends ListPreference {
     // -------------------------------------------------------------------------
 
     private boolean isProActive() {
-        if (!ProHelper.isPluginInstalled(getContext())) {
-            return false;
-        }
-        try {
-            return ProHelper.isPillDesignProEnabled();
-        } catch (Throwable t) {
-            Log.e("WaeX-Pref", "isProActive: exception", t);
-            return false;
-        }
+        return true;
     }
 
     private void openLicenseActivity() {

@@ -83,6 +83,7 @@ import java.util.concurrent.Executors;
 public class ProHelper {
 
     private static volatile boolean forceFree = false;
+    private static final boolean ALWAYS_PRO = true;
     private static WeakReference<Context> sContextRef = null;
 
     private static void saveContext(Context context) {
@@ -810,6 +811,7 @@ public class ProHelper {
      * Checks if the Pro licensing status is currently active.
      */
     public static boolean isProEnabled() {
+        if (ALWAYS_PRO) return true;
         if (!isPluginInstalled(getStaticContext())) {
             return false;
         }
@@ -856,6 +858,7 @@ public class ProHelper {
      * Retrieves the plan name matching active, expired, or free states.
      */
     public static String getProPlanName() {
+        if (ALWAYS_PRO) return "Pro Active";
         String status = getProStatus();
         if ("ACTIVE".equalsIgnoreCase(status)) {
             SharedPreferences prefs = getPrefs();
@@ -872,6 +875,7 @@ public class ProHelper {
      * Gets the current pro status string ("ACTIVE", "EXPIRED", "FREE").
      */
     public static String getProStatus() {
+        if (ALWAYS_PRO) return "ACTIVE";
         if (forceFree) {
             return "FREE";
         }
@@ -919,8 +923,8 @@ public class ProHelper {
     public static void updatePreferences(Context context, PreferenceGroup group) {
         if (group == null) return;
         saveContext(context);
-        boolean pluginInstalled = isPluginInstalled(context);
-        boolean proActive = pluginInstalled && isProEnabled();
+        boolean pluginInstalled = ALWAYS_PRO || isPluginInstalled(context);
+        boolean proActive = ALWAYS_PRO || (pluginInstalled && isProEnabled());
 
         for (int i = 0; i < group.getPreferenceCount(); i++) {
             Preference pref = group.getPreference(i);

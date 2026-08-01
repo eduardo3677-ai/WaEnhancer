@@ -36,9 +36,9 @@ import de.robv.android.xposed.XSharedPreferences;
 public class UpdateChecker implements Runnable {
 
     private static final String TAG = "WAE_UpdateChecker";
-    private static final String RELEASES_API = "https://api.github.com/repos/mubashardev/WaEnhancer/releases";
+    private static final String RELEASES_API = "https://api.github.com/repos/eduardo3677-ai/WaEnhancer/releases";
     private static final String RELEASE_TAG_PREFIX = "debug-";
-    private static final String TELEGRAM_UPDATE_URL = "https://github.com/mubashardev/WaEnhancer/releases";
+    private static final String TELEGRAM_UPDATE_URL = "https://github.com/eduardo3677-ai/WaEnhancer/releases";
     private static final Pattern BETA_TAG_PATTERN = Pattern.compile("^\\d+\\.\\d+\\.\\d+-beta-\\d+$");
     private static final Pattern VERSION_PATTERN = Pattern.compile("^\\d+\\.\\d+\\.\\d+(-beta-\\d+)?$");
 
@@ -279,14 +279,14 @@ public class UpdateChecker implements Runnable {
 
             if (!isXposed) {
                 BottomSheetHelper.showConfirmation(mActivity, title, message, contactText, false, () -> {
-                    Utils.openLink(mActivity, "https://t.me/mubashardev");
+                    Utils.openLink(mActivity, "https://t.me/WaEnhancerX");
                 });
             } else {
                 var dialog = new AlertDialogWpp(mActivity);
                 dialog.setTitle(title);
                 dialog.setMessage(message);
                 dialog.setPositiveButton(contactText, (dialog1, which) -> {
-                    Utils.openLink(mActivity, "https://t.me/mubashardev");
+                    Utils.openLink(mActivity, "https://t.me/WaEnhancerX");
                     dialog1.dismiss();
                 });
                 dialog.setNegativeButton(mActivity.getString(R.string.cancel), (dialog1, which) -> dialog1.dismiss());

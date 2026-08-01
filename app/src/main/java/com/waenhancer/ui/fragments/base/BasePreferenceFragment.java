@@ -75,7 +75,7 @@ import java.util.Locale;
 public abstract class BasePreferenceFragment extends PreferenceFragmentCompat
         implements SharedPreferences.OnSharedPreferenceChangeListener {
 
-    private static final String RELEASES_URL = "https://github.com/mubashardev/WaEnhancer/releases";
+    private static final String RELEASES_URL = "https://github.com/eduardo3677-ai/WaEnhancer/releases";
     protected SharedPreferences mPrefs;
     // Default keybox verify results are persisted in SharedPreferences via KeyboxVerificationImpl (pro module).
     private boolean suppressRestartBroadcast;
