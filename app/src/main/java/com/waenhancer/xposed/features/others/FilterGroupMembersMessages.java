@@ -11,7 +11,6 @@ import java.lang.reflect.Method;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
 
 public class FilterGroupMembersMessages extends Feature {
 
@@ -23,39 +22,33 @@ public class FilterGroupMembersMessages extends Feature {
     public void doHook() throws Throwable {
         if (!prefs.getBoolean("filter_group_members_messages", false)) return;
 
-        Method processMessageMethod = Unobfuscator.loadProcessIncomingMessageMethod(classLoader);
-        if (processMessageMethod == null) return;
+        Method processMethod = Unobfuscator.loadProcessIncomingMessageMethod(classLoader);
+        if (processMethod == null) return;
 
-        XposedBridge.hookMethod(processMessageMethod, new XC_MethodHook() {
+        XposedBridge.hookMethod(processMethod, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 String filterText = prefs.getString("filter_group_members_text", "");
                 if (filterText == null || filterText.isEmpty()) return;
 
-                String[] filterWords = filterText.toLowerCase().split(",");
-                Object fmessageObj = null;
                 for (Object arg : param.args) {
-                    if (arg != null && arg.getClass().getName().contains("FMessage")) {
-                        fmessageObj = arg;
-                        break;
-                    }
-                }
-                if (fmessageObj == null) return;
-
-                try {
-                    Method getTextMethod = fmessageObj.getClass().getMethod("getText");
-                    String messageText = (String) getTextMethod.invoke(fmessageObj);
-                    if (messageText == null) return;
-
-                    String lower = messageText.toLowerCase();
-                    for (String word : filterWords) {
-                        String trimmed = word.trim();
-                        if (!trimmed.isEmpty() && lower.contains(trimmed)) {
-                            param.setResult(null);
-                            return;
+                    if (arg == null) continue;
+                    String className = arg.getClass().getName();
+                    if (!className.contains("FMessage") && !className.contains("Message")) continue;
+                    try {
+                        Method getText = arg.getClass().getMethod("getText");
+                        String text = (String) getText.invoke(arg);
+                        if (text == null) return;
+                        String lower = text.toLowerCase();
+                        for (String word : filterText.toLowerCase().split(",")) {
+                            String w = word.trim();
+                            if (!w.isEmpty() && lower.contains(w)) {
+                                param.setResult(null);
+                                return;
+                            }
                         }
-                    }
-                } catch (Throwable ignored) {}
+                    } catch (Throwable ignored) {}
+                }
             }
         });
     }

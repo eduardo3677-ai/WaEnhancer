@@ -7,7 +7,6 @@ import androidx.annotation.NonNull;
 import com.waenhancer.xposed.core.Feature;
 import com.waenhancer.xposed.core.components.FMessageWpp;
 import com.waenhancer.xposed.core.devkit.Unobfuscator;
-import com.waenhancer.xposed.utils.ReflectionUtils;
 
 import java.io.File;
 import java.lang.reflect.Method;
@@ -23,29 +22,25 @@ public class DeleteMessageFile extends Feature {
 
     @Override
     public void doHook() throws Throwable {
-        boolean deleteReceived = prefs.getBoolean("delete_message_file", false);
-        boolean deleteSent = prefs.getBoolean("delete_message_file_sent", false);
-        if (!deleteReceived && !deleteSent) return;
+        boolean delReceived = prefs.getBoolean("delete_message_file", false);
+        boolean delSent = prefs.getBoolean("delete_message_file_sent", false);
+        if (!delReceived && !delSent) return;
 
-        Method deleteMessageMethod = Unobfuscator.loadDeleteMessageMethod(classLoader);
-        if (deleteMessageMethod == null) return;
+        Method deleteMethod = Unobfuscator.loadDeleteMessageMethod(classLoader);
+        if (deleteMethod == null) return;
 
-        XposedBridge.hookMethod(deleteMessageMethod, new XC_MethodHook() {
+        XposedBridge.hookMethod(deleteMethod, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                Object fmessageObj = null;
                 for (Object arg : param.args) {
                     if (arg != null && FMessageWpp.TYPE.isInstance(arg)) {
-                        fmessageObj = arg;
+                        FMessageWpp fmessage = new FMessageWpp(arg);
+                        File mediaFile = fmessage.getMediaFile();
+                        if (mediaFile != null && mediaFile.exists()) {
+                            mediaFile.delete();
+                        }
                         break;
                     }
-                }
-                if (fmessageObj == null) return;
-
-                FMessageWpp fmessage = new FMessageWpp(fmessageObj);
-                File mediaFile = fmessage.getMediaFile();
-                if (mediaFile != null && mediaFile.exists()) {
-                    mediaFile.delete();
                 }
             }
         });

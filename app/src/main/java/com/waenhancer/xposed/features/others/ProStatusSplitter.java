@@ -23,34 +23,53 @@ public class ProStatusSplitter extends Feature {
     public void doHook() throws Throwable {
         if (!prefs.getBoolean("pro_status_splitter", false)) return;
 
-        try {
-            Class<?> statusPlaybackClass = XposedHelpers.findClass("com.whatsapp.status.playback.StatusPlaybackActivity", classLoader);
-            Method onCreate = XposedHelpers.findMethodExactIfExists(statusPlaybackClass, "onCreate", android.os.Bundle.class);
-            if (onCreate != null) {
-                XposedBridge.hookMethod(onCreate, new XC_MethodHook() {
-                    @Override
-                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                        // Add split button to the status playback controls
-                        // The splitter cuts long videos into 30-second segments for status upload
-                    }
-                });
-            }
-        } catch (Throwable ignored) {}
-
+        // Hook the video trim/max duration method to split long videos
         try {
             Method trimMethod = Unobfuscator.loadVideoTrimMethod(classLoader);
             if (trimMethod != null) {
                 XposedBridge.hookMethod(trimMethod, new XC_MethodHook() {
                     @Override
                     protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                        // Override max duration to 30s for status splitting
-                        for (Object arg : param.args) {
-                            if (arg instanceof Integer) {
-                                if ((Integer) arg > 30) {
-                                    param.args[param.args.length - 1] = 30;
-                                }
+                        for (int i = 0; i < param.args.length; i++) {
+                            if (param.args[i] instanceof Integer) {
+                                int val = (Integer) param.args[i];
+                                if (val > 30) param.args[i] = 30;
                             }
                         }
+                    }
+                });
+            }
+        } catch (Throwable ignored) {}
+
+        // Hook MediaQuality to increase video limit for status uploads
+        try {
+            Class<?> processVideoQualityClass = XposedHelpers.findClass(
+                    "com.whatsapp.mediaview.ProcessVideoQuality", classLoader);
+            java.lang.reflect.Field limitField = null;
+            for (java.lang.reflect.Field f : processVideoQualityClass.getDeclaredFields()) {
+                if (f.getName().contains("videoLimitMb") || f.getName().contains("limitMb")) {
+                    limitField = f;
+                    break;
+                }
+            }
+            if (limitField != null) {
+                limitField.setAccessible(true);
+                XposedBridge.hookAllConstructors(processVideoQualityClass, new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                        try {
+                            java.lang.reflect.Field f = null;
+                            for (java.lang.reflect.Field fld : param.thisObject.getClass().getDeclaredFields()) {
+                                if (fld.getName().contains("videoLimitMb") || fld.getName().contains("limitMb")) {
+                                    f = fld;
+                                    break;
+                                }
+                            }
+                            if (f != null) {
+                                f.setAccessible(true);
+                                f.setInt(param.thisObject, 300);
+                            }
+                        } catch (Throwable ignored) {}
                     }
                 });
             }
