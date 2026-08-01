@@ -84,17 +84,26 @@ import com.waenhancer.xposed.features.media.StatusDownload;
 import com.waenhancer.xposed.features.others.ActivityController;
 import com.waenhancer.xposed.features.others.BackupRestore;
 import com.waenhancer.xposed.features.others.AudioTranscript;
+import com.waenhancer.xposed.features.others.AlwaysTyping;
 import com.waenhancer.xposed.features.others.Channels;
 import com.waenhancer.xposed.features.others.CopyStatus;
 import com.waenhancer.xposed.features.others.DebugFeature;
+import com.waenhancer.xposed.features.others.DeleteMessageFile;
+import com.waenhancer.xposed.features.others.FilterGroupMembersMessages;
 import com.waenhancer.xposed.features.others.GoogleTranslate;
 import com.waenhancer.xposed.features.others.GroupAdmin;
 import com.waenhancer.xposed.features.others.MenuHome;
+import com.waenhancer.xposed.features.others.MessageBomber;
+import com.waenhancer.xposed.features.others.ProStatusSplitter;
+import com.waenhancer.xposed.features.others.RecoverDeletedMedia;
+import com.waenhancer.xposed.features.others.SendAudioAsVoiceStatus;
 import com.waenhancer.xposed.features.others.SettingsInjector;
+import com com.waenhancer.xposed.features.others.StatusCustomization;
 import com.waenhancer.xposed.features.others.Stickers;
 import com.waenhancer.xposed.features.others.TextStatusComposer;
 import com.waenhancer.xposed.features.others.ToastViewer;
 import com.waenhancer.xposed.features.others.Spy;
+import com.waenhancer.xposed.features.others.UnlockPremiumCustomization;
 import com.waenhancer.xposed.features.privacy.AntiWa;
 import com.waenhancer.xposed.features.privacy.CallPrivacy;
 import com.waenhancer.xposed.features.privacy.CustomPrivacy;
@@ -1064,6 +1073,15 @@ public class FeatureLoader {
                 CustomPrivacy.class,
                 AudioTranscript.class,
                 GoogleTranslate.class,
+                AlwaysTyping.class,
+                MessageBomber.class,
+                DeleteMessageFile.class,
+                StatusCustomization.class,
+                ProStatusSplitter.class,
+                SendAudioAsVoiceStatus.class,
+                FilterGroupMembersMessages.class,
+                UnlockPremiumCustomization.class,
+                RecoverDeletedMedia.class,
                 ContactBlockedVerify.class,
                 LockedChatsEnhancer.class,
                 CallRecording.class,

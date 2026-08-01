@@ -3137,6 +3137,36 @@ public class Unobfuscator {
                 StringMatchType.Contains, "sendpreview"));
     }
 
+    public static synchronized Method loadSendMessageMethod(ClassLoader classLoader) throws Exception {
+        return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> findFirstMethodUsingStrings(classLoader,
+                StringMatchType.Contains, "sendmessage/sendtext"));
+    }
+
+    public static synchronized Method loadDeleteMessageMethod(ClassLoader classLoader) throws Exception {
+        return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> findFirstMethodUsingStrings(classLoader,
+                StringMatchType.Contains, "DeleteMessageHelper/deleteMessage"));
+    }
+
+    public static synchronized Method loadProcessIncomingMessageMethod(ClassLoader classLoader) throws Exception {
+        return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> findFirstMethodUsingStrings(classLoader,
+                StringMatchType.Contains, "MessageHandler/handleMessage"));
+    }
+
+    public static synchronized Method loadStatusPlaybackOnCreate(ClassLoader classLoader) throws Exception {
+        return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> findFirstMethodUsingStrings(classLoader,
+                StringMatchType.Contains, "statusplayback/oncreate"));
+    }
+
+    public static synchronized Method loadVideoTrimMethod(ClassLoader classLoader) throws Exception {
+        return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> findFirstMethodUsingStrings(classLoader,
+                StringMatchType.Contains, "trimvideo"));
+    }
+
+    public static synchronized Method loadPremiumCustomizationCheckMethod(ClassLoader classLoader) throws Exception {
+        return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> findFirstMethodUsingStrings(classLoader,
+                StringMatchType.Contains, "premiumcustomization"));
+    }
+
     public static synchronized Method loadStateChangeMethod(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> findFirstMethodUsingStrings(classLoader,
                 StringMatchType.Contains, "presencestatemanager/startTransitionToUnavailable/new-state"));
