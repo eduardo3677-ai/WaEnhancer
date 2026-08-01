@@ -47,12 +47,6 @@ public class DeleteMessageFile extends Feature {
                 if (mediaFile != null && mediaFile.exists()) {
                     mediaFile.delete();
                 }
-
-                String filePath = fmessage.getMediaFilePath();
-                if (filePath != null && !filePath.isEmpty()) {
-                    File f = new File(filePath);
-                    if (f.exists()) f.delete();
-                }
             }
         });
     }
