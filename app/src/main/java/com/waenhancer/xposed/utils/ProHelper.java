@@ -1250,6 +1250,7 @@ public class ProHelper {
     }
 
     private static String getHookStringSafely(String hookKey) {
+        if (ALWAYS_PRO) return hookKey;
         if (isLimitedFreeHookEnabled(hookKey)) {
             return getLimitedFreeHookString(hookKey);
         }
