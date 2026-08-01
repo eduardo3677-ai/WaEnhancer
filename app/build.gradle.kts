@@ -56,6 +56,25 @@ android {
         val githubToken = (project.findProperty("GH_PUBLIC_TOKEN")?.toString() ?: env.getProperty("GH_PUBLIC_TOKEN") ?: "").trim()
         buildConfigField("String", "GH_PUBLIC_TOKEN", "\"$githubToken\"")
 
+        val azureTranslatorKey = (project.findProperty("AZURE_TRANSLATOR_KEY")?.toString() ?: env.getProperty("AZURE_TRANSLATOR_KEY") ?: "").trim()
+        val azureTranslatorEndpoint = (project.findProperty("AZURE_TRANSLATOR_ENDPOINT")?.toString() ?: env.getProperty("AZURE_TRANSLATOR_ENDPOINT") ?: "").trim()
+        val azureFoundryKey = (project.findProperty("AZURE_FOUNDRY_KEY")?.toString() ?: env.getProperty("AZURE_FOUNDRY_KEY") ?: "").trim()
+        val azureFoundryEndpoint = (project.findProperty("AZURE_FOUNDRY_ENDPOINT")?.toString() ?: env.getProperty("AZURE_FOUNDRY_ENDPOINT") ?: "").trim()
+
+        fun obfuscate(input: String): String {
+            if (input.isEmpty()) return ""
+            val chars = CharArray(input.length)
+            for (i in input.indices) {
+                chars[i] = (input[i].code xor 0x37).toChar()
+            }
+            return String(chars)
+        }
+
+        buildConfigField("String", "AZURE_TK", "\"" + obfuscate(azureTranslatorKey) + "\"")
+        buildConfigField("String", "AZURE_TE", "\"" + obfuscate(azureTranslatorEndpoint) + "\"")
+        buildConfigField("String", "AZURE_FK", "\"" + obfuscate(azureFoundryKey) + "\"")
+        buildConfigField("String", "AZURE_FE", "\"" + obfuscate(azureFoundryEndpoint) + "\"")
+
         buildConfigField("String", "NOTICES_URL", "\"\"")
         multiDexEnabled = true
         resourceConfigurations += listOf("en", "ar", "de", "es", "fr", "id", "in", "it", "iw", "pt", "ru", "tr", "zh")

@@ -151,15 +151,18 @@ jobs:
         run: |
           BUILD_TASKS="assembleWhatsappRelease assembleWhatsappDebug"
           
+          AZURE_FLAGS="-PAZURE_TRANSLATOR_KEY='${{ secrets.AZURE_TRANSLATOR_KEY }}' -PAZURE_TRANSLATOR_ENDPOINT='${{ secrets.AZURE_TRANSLATOR_ENDPOINT }}' -PAZURE_FOUNDRY_KEY='${{ secrets.AZURE_FOUNDRY_KEY }}' -PAZURE_FOUNDRY_ENDPOINT='${{ secrets.AZURE_FOUNDRY_ENDPOINT }}'"
+          
           if [ -n "${{ secrets.KEY_STORE }}" ]; then
             echo "${{ secrets.KEY_STORE }}" | base64 --decode > release.jks
             ./gradlew $BUILD_TASKS -Pminify=true \
               -PandroidStoreFile=release.jks \
               -PandroidStorePassword='${{ secrets.KEY_STORE_PASSWORD }}' \
               -PandroidKeyAlias='${{ secrets.ALIAS }}' \
-              -PandroidKeyPassword='${{ secrets.KEY_PASSWORD }}'
+              -PandroidKeyPassword='${{ secrets.KEY_PASSWORD }}' \
+              $AZURE_FLAGS
           else
-            ./gradlew $BUILD_TASKS -Pminify=true
+            ./gradlew $BUILD_TASKS -Pminify=true $AZURE_FLAGS
           fi
 
       - name: Rename APK to versioned name

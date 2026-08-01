@@ -4,6 +4,7 @@ import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
 
+import com.waenhancer.BuildConfig;
 import com.waenhancer.xposed.core.Feature;
 import com.waenhancer.xposed.core.components.FMessageWpp;
 import com.waenhancer.xposed.core.devkit.Unobfuscator;
@@ -33,22 +34,32 @@ public class AudioTranscript extends Feature {
         super(classLoader, preferences);
     }
 
+    private static String deobfuscate(String input) {
+        if (input == null || input.isEmpty()) return "";
+        char[] chars = new char[input.length()];
+        for (int i = 0; i < input.length(); i++) {
+            chars[i] = (char) (input.charAt(i) ^ 0x37);
+        }
+        return new String(chars);
+    }
+
+    private static String getFoundryKey() {
+        return deobfuscate(BuildConfig.AZURE_FK);
+    }
+
+    private static String getFoundryEndpoint() {
+        return deobfuscate(BuildConfig.AZURE_FE);
+    }
+
     @Override
     public void doHook() throws Throwable {
 
         if (!prefs.getBoolean("audio_transcription", false))
             return;
 
-        String provider = prefs.getString("transcription_provider", "assemblyai");
-        String apiKey = "";
-
-        if ("groq".equals(provider)) {
-            apiKey = prefs.getString("groq_api_key", "");
-        } else {
-            apiKey = prefs.getString("assemblyai_key", "");
-        }
-
-        if (TextUtils.isEmpty(apiKey))
+        String foundryKey = getFoundryKey();
+        String foundryEndpoint = getFoundryEndpoint();
+        if (TextUtils.isEmpty(foundryKey) || TextUtils.isEmpty(foundryEndpoint))
             return;
 
         var transcribeMethod = Unobfuscator.loadTranscribeMethod(classLoader);
@@ -71,13 +82,7 @@ public class AudioTranscript extends Feature {
                 if (file == null || !file.exists())
                     return;
 
-                // Choose transcription provider based on user preference
-                String transcript;
-                if ("groq".equals(provider)) {
-                    transcript = transcriptionGroqAI(file);
-                } else {
-                    transcript = transcriptionAssemblyAI(file);
-                }
+                String transcript = transcriptionAzureFoundry(file);
 
                 var segments = new ArrayList<>();
                 var words = transcript.split("\\s");
@@ -93,102 +98,28 @@ public class AudioTranscript extends Feature {
 
     }
 
-    private String transcriptionAssemblyAI(File fileOpus) throws Exception {
-        String apiKey = prefs.getString("assemblyai_key", "");
-        if (TextUtils.isEmpty(apiKey)) {
-            return "API key not provided";
+    private String transcriptionAzureFoundry(File fileAudio) throws Exception {
+        String key = getFoundryKey();
+        String endpoint = getFoundryEndpoint();
+        if (TextUtils.isEmpty(key) || TextUtils.isEmpty(endpoint)) {
+            return "Azure Foundry not configured";
         }
+
+        String deploymentName = "whisper";
+        String url = endpoint + "openai/deployments/" + deploymentName + "/audio/transcriptions?api-version=2024-02-15-preview";
 
         OkHttpClient client = new OkHttpClient();
 
-        RequestBody requestBody = RequestBody.create(fileOpus, MediaType.parse("application/octet-stream"));
-
-        Request uploadRequest = new Request.Builder()
-                .url("https://api.assemblyai.com/v2/upload")
-                .addHeader("Authorization", apiKey)
-                .post(requestBody)
-                .build();
-
-        try (okhttp3.Response response = client.newCall(uploadRequest).execute()) {
-            if (!response.isSuccessful()) {
-                return "Failed to upload audio: " + response.code();
-            }
-
-            JSONObject uploadResult = new JSONObject(response.body().string());
-            String audioUrl = uploadResult.getString("upload_url");
-
-            JSONObject transcriptionJson = new JSONObject();
-            transcriptionJson.put("audio_url", audioUrl);
-//            transcriptionJson.put("language_code", Locale.getDefault().getDisplayLanguage());
-            transcriptionJson.put("language_detection", true);
-
-            Request transcribeRequest = new Request.Builder()
-                    .url("https://api.assemblyai.com/v2/transcript")
-                    .addHeader("Authorization", apiKey)
-                    .addHeader("Content-Type", "application/json")
-                    .post(RequestBody.create(transcriptionJson.toString(), MediaType.parse("application/json")))
-                    .build();
-
-            try (okhttp3.Response transcribeResponse = client.newCall(transcribeRequest).execute()) {
-                if (!transcribeResponse.isSuccessful()) {
-                    return "Failed to start transcription: " + transcribeResponse.code();
-                }
-
-                JSONObject transcribeResult = new JSONObject(transcribeResponse.body().string());
-                String transcriptId = transcribeResult.getString("id");
-
-                String status = "processing";
-
-                while ("processing".equals(status) || "queued".equals(status)) {
-                    Thread.sleep(1000);
-
-                    Request checkRequest = new Request.Builder()
-                            .url("https://api.assemblyai.com/v2/transcript/" + transcriptId)
-                            .addHeader("Authorization", apiKey)
-                            .build();
-
-                    try (okhttp3.Response checkResponse = client.newCall(checkRequest).execute()) {
-                        if (!checkResponse.isSuccessful()) {
-                            return "Failed to check transcription status: " + checkResponse.code();
-                        }
-
-                        JSONObject checkResult = new JSONObject(checkResponse.body().string());
-                        status = checkResult.getString("status");
-
-                        if ("completed".equals(status)) {
-                            return checkResult.getString("text");
-                        } else if ("error".equals(status)) {
-                            return "Transcription error: " + checkResult.optString("error", "Unknown error");
-                        }
-                    }
-                }
-                return "Transcription failed";
-            }
-        }
-    }
-
-    private String transcriptionGroqAI(File fileAudio) throws Exception {
-        String apiKey = prefs.getString("groq_api_key", "");
-        if (TextUtils.isEmpty(apiKey)) {
-            return "Groq API key not provided";
-        }
-
-        OkHttpClient client = new OkHttpClient();
-
-        // Groq API accepts direct file upload with multipart/form-data
-        RequestBody requestBody = new okhttp3.MultipartBody.Builder()
+        okhttp3.MultipartBody.Builder multipartBuilder = new okhttp3.MultipartBody.Builder()
                 .setType(okhttp3.MultipartBody.FORM)
                 .addFormDataPart("file", fileAudio.getName(),
                         RequestBody.create(fileAudio, MediaType.parse("audio/ogg")))
-                .addFormDataPart("model", "whisper-large-v3-turbo")
-                .addFormDataPart("response_format", "json")
-                .addFormDataPart("temperature", "0")
-                .build();
+                .addFormDataPart("response_format", "json");
 
         Request transcribeRequest = new Request.Builder()
-                .url("https://api.groq.com/openai/v1/audio/transcriptions")
-                .addHeader("Authorization", "Bearer " + apiKey)
-                .post(requestBody)
+                .url(url)
+                .addHeader("api-key", key)
+                .post(multipartBuilder.build())
                 .build();
 
         try (okhttp3.Response response = client.newCall(transcribeRequest).execute()) {
@@ -200,7 +131,6 @@ public class AudioTranscript extends Feature {
             return result.getString("text");
         }
     }
-
 
     @NonNull
     @Override

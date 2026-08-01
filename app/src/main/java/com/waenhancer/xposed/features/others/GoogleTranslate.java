@@ -2,6 +2,7 @@ package com.waenhancer.xposed.features.others;
 
 import androidx.annotation.NonNull;
 
+import com.waenhancer.BuildConfig;
 import com.waenhancer.xposed.core.Feature;
 import com.waenhancer.xposed.core.devkit.Unobfuscator;
 
@@ -13,6 +14,7 @@ import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import de.robv.android.xposed.XC_MethodHook;
@@ -23,8 +25,10 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import okhttp3.Call;
 import okhttp3.Callback;
+import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class GoogleTranslate extends Feature {
@@ -33,6 +37,23 @@ public class GoogleTranslate extends Feature {
 
     public GoogleTranslate(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
+    }
+
+    private static String deobfuscate(String input) {
+        if (input == null || input.isEmpty()) return "";
+        char[] chars = new char[input.length()];
+        for (int i = 0; i < input.length(); i++) {
+            chars[i] = (char) (input.charAt(i) ^ 0x37);
+        }
+        return new String(chars);
+    }
+
+    private static String getTranslatorKey() {
+        return deobfuscate(BuildConfig.AZURE_TK);
+    }
+
+    private static String getTranslatorEndpoint() {
+        return deobfuscate(BuildConfig.AZURE_TE);
     }
 
     @Override
@@ -60,7 +81,7 @@ public class GoogleTranslate extends Feature {
                     var texto = (String) param.args[0];
                     var currentMethod = (Method) param.method;
                     var unityTranslationResultClass = currentMethod.getReturnType();
-                    var translation = translateGoogle(texto, Locale.getDefault().getLanguage()).get();
+                    var translation = translateAzure(texto, Locale.getDefault().getLanguage()).get();
                     return unityTranslationResultClass.getConstructor(String.class, float.class, int.class).newInstance(translation, 1, 0);
                 }
             });
@@ -75,7 +96,7 @@ public class GoogleTranslate extends Feature {
                     var translated = new ArrayList<String>();
 
                     for (var texto : list) {
-                        var translation = translateGoogle((String) texto, Locale.getDefault().getLanguage()).get();
+                        var translation = translateAzure((String) texto, Locale.getDefault().getLanguage()).get();
                         translated.add(translation);
                     }
 
@@ -89,28 +110,37 @@ public class GoogleTranslate extends Feature {
         if (pre21Method == null && newMethod == null) throw new Exception("GoogleTranslate method not found");
     }
 
-    public CompletableFuture<String> translateGoogle(String text, String languageDest) {
+    public CompletableFuture<String> translateAzure(String text, String languageDest) {
         CompletableFuture<String> future = new CompletableFuture<>();
-        String url;
-        try {
-            url = String.format(
-                    "https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=auto&tl=%s&q=%s",
-                    languageDest,
-                    URLEncoder.encode(text, "UTF-8")
-            );
-        } catch (Exception e) {
-            future.completeExceptionally(new RuntimeException("Erro ao codificar a URL: " + e.getMessage()));
+        String key = getTranslatorKey();
+        String endpoint = getTranslatorEndpoint();
+        if (key.isEmpty() || endpoint.isEmpty()) {
+            future.completeExceptionally(new RuntimeException("Azure Translator not configured"));
             return future;
         }
 
+        String url;
+        try {
+            url = endpoint + "translate?api-version=3.0&to=" + URLEncoder.encode(languageDest, "UTF-8");
+        } catch (Exception e) {
+            future.completeExceptionally(new RuntimeException("URL encode error: " + e.getMessage()));
+            return future;
+        }
+
+        String body = "[{\"Text\":" + quote(text) + "}]";
+
         Request request = new Request.Builder()
                 .url(url)
+                .addHeader("Ocp-Apim-Subscription-Key", key)
+                .addHeader("Content-Type", "application/json; charset=UTF-8")
+                .addHeader("X-ClientTraceId", UUID.randomUUID().toString())
+                .post(RequestBody.create(body, MediaType.parse("application/json")))
                 .build();
 
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                future.completeExceptionally(new RuntimeException("Erro ao traduzir o texto: " + e.getMessage()));
+                future.completeExceptionally(new RuntimeException("Translation failed: " + e.getMessage()));
             }
 
             @Override
@@ -119,25 +149,45 @@ public class GoogleTranslate extends Feature {
                     String responseData = response.body().string();
                     try {
                         JSONArray jsonArray = new JSONArray(responseData);
-                        JSONArray translations = jsonArray.getJSONArray(0);
+                        JSONArray translations = jsonArray.getJSONObject(0).getJSONArray("translations");
                         StringBuilder translation = new StringBuilder();
-
                         for (int i = 0; i < translations.length(); i++) {
-                            JSONArray item = translations.getJSONArray(i);
-                            translation.append(item.getString(0));
+                            translation.append(translations.getJSONObject(i).getString("text"));
                         }
-
                         future.complete(translation.toString());
                     } catch (Exception e) {
-                        future.completeExceptionally(new RuntimeException("Erro ao processar a resposta: " + e.getMessage()));
+                        future.completeExceptionally(new RuntimeException("Parse error: " + e.getMessage()));
                     }
                 } else {
-                    future.completeExceptionally(new RuntimeException("Resposta não foi bem-sucedida."));
+                    future.completeExceptionally(new RuntimeException("Translation HTTP " + response.code()));
                 }
             }
         });
 
         return future;
+    }
+
+    private static String quote(String s) {
+        StringBuilder sb = new StringBuilder();
+        sb.append('"');
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '"': sb.append("\\\""); break;
+                case '\\': sb.append("\\\\"); break;
+                case '\n': sb.append("\\n"); break;
+                case '\r': sb.append("\\r"); break;
+                case '\t': sb.append("\\t"); break;
+                default:
+                    if (c < 0x20) {
+                        sb.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        sb.append(c);
+                    }
+            }
+        }
+        sb.append('"');
+        return sb.toString();
     }
 
     @NonNull
